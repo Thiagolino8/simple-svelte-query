@@ -3,6 +3,19 @@
 	"version": "0.0.1",
 	"description": "Promise-first query/cache library for Svelte 5 inspired by TanStack Query",
 	"license": "MIT",
+	"author": "Thiagolino8",
+	"homepage": "https://github.com/Thiagolino8/simple-svelte-query#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Thiagolino8/simple-svelte-query.git"
+	},
+	"bugs": {
+		"url": "https://github.com/Thiagolino8/simple-svelte-query/issues"
+	},
+	"funding": {
+		"type": "github",
+		"url": "https://github.com/sponsors/Thiagolino8"
+	},
 	"private": false,
 	"scripts": {
 		"dev": "vite dev",
@@ -73,12 +86,18 @@
 	},
 	"keywords": [
 		"svelte",
+		"svelte5",
 		"sveltekit",
 		"query",
 		"cache",
-		"promise"
+		"promise",
+		"data-fetching",
+		"reactive",
+		"runes",
+		"state-management"
 	],
 	"engines": {
+		"node": ">=18.0.0",
 		"bun": ">=1.0.0"
 	},
 	"dependencies": {
