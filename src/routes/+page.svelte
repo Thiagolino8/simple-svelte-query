@@ -70,17 +70,21 @@ const products = await productsQuery;`;
 	<h2>Links</h2>
 	<div class="links-grid">
 		<a href="https://www.npmjs.com/package/simple-svelte-query" target="_blank" rel="noreferrer"
-			>npm package</a
+			><span class="icon" aria-hidden="true">📦</span>npm package</a
 		>
-		<a href="https://github.com/thiagolino8" target="_blank" rel="noreferrer">GitHub</a>
+		<a href="https://github.com/thiagolino8" target="_blank" rel="noreferrer"
+			><span class="icon" aria-hidden="true">🐙</span>GitHub</a
+		>
 		<a
 			href="https://www.linkedin.com/in/thiago-lino-gomes-5812581bb"
 			target="_blank"
-			rel="noreferrer">LinkedIn</a
+			rel="noreferrer"><span class="icon" aria-hidden="true">💼</span>LinkedIn</a
 		>
-		<a href="https://x.com/Thiagolinog" target="_blank" rel="noreferrer">X</a>
+		<a href="https://x.com/Thiagolinog" target="_blank" rel="noreferrer"
+			><span class="icon" aria-hidden="true">✖️</span>X</a
+		>
 		<a href="https://bsky.app/profile/thiagolino8.bsky.social" target="_blank" rel="noreferrer"
-			>Bluesky</a
+			><span class="icon" aria-hidden="true">🦋</span>Bluesky</a
 		>
 	</div>
 </section>
@@ -284,6 +288,8 @@ const products = await productsQuery;`;
 
 	.links-grid a {
 		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
 		text-decoration: none;
 		padding: 0.35rem 0.6rem;
 		border-radius: 8px;
@@ -299,6 +305,11 @@ const products = await productsQuery;`;
 	.links-grid a:hover {
 		border-color: var(--border-hover);
 		color: var(--text);
+	}
+
+	.links-grid .icon {
+		font-size: 0.9rem;
+		line-height: 1;
 	}
 
 	@keyframes fadeUp {
