@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { hl } from '../lib/highlight.ts';
 
 	const quickExample = `import { QueryClient } from 'simple-svelte-query';
 
@@ -44,7 +43,10 @@ const products = await productsQuery;`;
 	<div class="feature">
 		<span class="num">01</span>
 		<h3>Promise cache</h3>
-		<p>Stores the Promise itself. Compose with <code>await</code>, get predictable concurrent behavior.</p>
+		<p>
+			Stores the Promise itself. Compose with <code>await</code>, get predictable concurrent
+			behavior.
+		</p>
 	</div>
 	<div class="feature">
 		<span class="num">02</span>
@@ -60,7 +62,7 @@ const products = await productsQuery;`;
 
 <section class="example-section">
 	<h2>Quick start</h2>
-	<pre><code>{@html hl(quickExample)}</code></pre>
+	<pre><code>{quickExample}</code></pre>
 </section>
 
 <style>

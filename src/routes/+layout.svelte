@@ -18,7 +18,7 @@
 			<span class="wordmark">simple-svelte-query</span>
 		</a>
 		<nav>
-			{#each links as { href, label }}
+			{#each links as { href, label } (href)}
 				<a class:active={page.url.pathname === href} href={resolve(href)}>{label}</a>
 			{/each}
 		</nav>

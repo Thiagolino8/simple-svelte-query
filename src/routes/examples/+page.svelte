@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { QueryClient } from '../../lib/index.ts';
-	import { hl } from '../../lib/highlight.ts';
 
 	const queryClient = new QueryClient(1000 * 20);
 
@@ -166,7 +165,7 @@ const prefetch = (id: number) =>
 				</div>
 			</div>
 		{:else}
-			<pre><code>{@html hl(searchCode)}</code></pre>
+			<pre><code>{searchCode}</code></pre>
 		{/if}
 	</section>
 
@@ -188,7 +187,7 @@ const prefetch = (id: number) =>
 		{#if view2 === 'live'}
 			<div class="demo">
 				<div class="tabs">
-					{#each categories as cat}
+					{#each categories as cat (cat)}
 						<button class="tab" class:active={category === cat} onclick={() => (category = cat)}
 							>{cat}</button
 						>
@@ -211,7 +210,7 @@ const prefetch = (id: number) =>
 				</div>
 			</div>
 		{:else}
-			<pre><code>{@html hl(categoryCode)}</code></pre>
+			<pre><code>{categoryCode}</code></pre>
 		{/if}
 	</section>
 
@@ -233,17 +232,17 @@ const prefetch = (id: number) =>
 		{#if view3 === 'live'}
 			<div class="demo">
 				<div class="tabs">
-					{#each { length: 5 } as _, i}
+					{#each Array.from({ length: 5 }, (_, i) => i + 1) as userId (userId)}
 						<button
 							class="tab"
-							class:active={selectedUserId === i + 1}
-							onmouseenter={() => prefetchUser(i + 1)}
-							onclick={() => (selectedUserId = i + 1)}>User {i + 1}</button
+							class:active={selectedUserId === userId}
+							onmouseenter={() => prefetchUser(userId)}
+							onclick={() => (selectedUserId = userId)}>User {userId}</button
 						>
 					{/each}
 				</div>
 
-				{#each [await userQuery] as user}
+				{#each [await userQuery] as user (user.id)}
 					<div class="user-detail" data-loading={String(!!$effect.pending())}>
 						<strong>{user.firstName} {user.lastName}</strong>
 						<span>{user.email} · {user.age} years old</span>
@@ -253,7 +252,7 @@ const prefetch = (id: number) =>
 				<p class="hint">Hover a tab first, then click — compare with clicking without hovering.</p>
 			</div>
 		{:else}
-			<pre><code>{@html hl(prefetchCode)}</code></pre>
+			<pre><code>{prefetchCode}</code></pre>
 		{/if}
 	</section>
 </div>

@@ -42,7 +42,7 @@
 		{
 			aspect: 'Key hashing',
 			tanstack: 'Object keys in the array are sorted deterministically — { b, a } equals { a, b }',
-			thisLib: 'Keys are JSON.stringify\'d as-is — no object key sorting',
+			thisLib: "Keys are JSON.stringify'd as-is — no object key sorting",
 			note: '{ b: 1, a: 2 } ≠ { a: 2, b: 1 } here; keep object shape consistent or use primitives'
 		},
 		{
@@ -60,7 +60,7 @@
 		{
 			aspect: 'SSR / Hydration',
 			tanstack: 'Dehydrate / hydrate API',
-			thisLib: 'Uses Svelte\'s hydratable() built-in',
+			thisLib: "Uses Svelte's hydratable() built-in",
 			note: 'Zero config, native SvelteKit support'
 		}
 	];

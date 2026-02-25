@@ -104,7 +104,9 @@ export class QueryClient {
 	 * @param optionsFn Função que retorna as opções atuais da query.
 	 * @returns Thenable custom da query com `queryKey`.
 	 */
-	createQuery<T, const K extends readonly unknown[]>(optionsFn: () => QueryOptions<T, K>): QueryResult<T> {
+	createQuery<T, const K extends readonly unknown[]>(
+		optionsFn: () => QueryOptions<T, K>
+	): QueryResult<T> {
 		const queries = this.#queries;
 		const { queryKey, ...rest } = $derived(optionsFn());
 		const query = $derived(new Query({ queryKey, ...untrack(() => rest) }));
@@ -125,9 +127,9 @@ export class QueryClient {
 			get then() {
 				const promise = entry.promise as Promise<T>;
 				return <TResult1 = T, TResult2 = never>(
-				onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
-				onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
-			) => promise.then(onfulfilled, onrejected);
+					onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
+					onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
+				) => promise.then(onfulfilled, onrejected);
 			}
 		};
 	}
