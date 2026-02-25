@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import CodeBlock from '$lib/CodeBlock.svelte';
 
 	const quickExample = `import { QueryClient } from 'simple-svelte-query';
 
@@ -62,7 +63,7 @@ const products = await productsQuery;`;
 
 <section class="example-section">
 	<h2>Quick start</h2>
-	<pre><code>{quickExample}</code></pre>
+	<CodeBlock code={quickExample} lang="typescript" />
 </section>
 
 <section class="links-section">

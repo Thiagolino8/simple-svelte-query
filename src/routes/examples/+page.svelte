@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CodeBlock from '$lib/CodeBlock.svelte';
 	import { QueryClient } from '../../lib/index.ts';
 
 	const queryClient = new QueryClient(1000 * 20);
@@ -165,7 +166,7 @@ const prefetch = (id: number) =>
 				</div>
 			</div>
 		{:else}
-			<pre><code>{searchCode}</code></pre>
+			<CodeBlock code={searchCode} lang="typescript" />
 		{/if}
 	</section>
 
@@ -210,7 +211,7 @@ const prefetch = (id: number) =>
 				</div>
 			</div>
 		{:else}
-			<pre><code>{categoryCode}</code></pre>
+			<CodeBlock code={categoryCode} lang="typescript" />
 		{/if}
 	</section>
 
@@ -252,7 +253,7 @@ const prefetch = (id: number) =>
 				<p class="hint">Hover a tab first, then click — compare with clicking without hovering.</p>
 			</div>
 		{:else}
-			<pre><code>{prefetchCode}</code></pre>
+			<CodeBlock code={prefetchCode} lang="typescript" />
 		{/if}
 	</section>
 </div>
@@ -480,7 +481,7 @@ const prefetch = (id: number) =>
 		margin: 0;
 	}
 
-	.example pre {
+	.example :global(pre) {
 		margin: 0;
 	}
 

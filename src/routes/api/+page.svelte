@@ -1,4 +1,6 @@
 <script lang="ts">
+	import CodeBlock from '$lib/CodeBlock.svelte';
+
 	const createQueryExample = String.raw`const productsQuery = queryClient.createQuery(() => ({
   queryKey: ['products', filters],
   queryFn: ({ signal }) => fetchProducts(filters, signal)
@@ -61,7 +63,7 @@ queryClient.invalidateQueries();`;
 				</li>
 				<li>Tracks key changes from reactive state and updates cache automatically</li>
 			</ul>
-			<pre><code>{createQueryExample}</code></pre>
+			<CodeBlock code={createQueryExample} lang="typescript" />
 		</article>
 
 		<article class="method">
@@ -70,7 +72,7 @@ queryClient.invalidateQueries();`;
 				<li>Fetches data and populates cache</li>
 				<li>Refetches only when stale or missing</li>
 			</ul>
-			<pre><code>{fetchQueryExample}</code></pre>
+			<CodeBlock code={fetchQueryExample} lang="typescript" />
 		</article>
 
 		<article class="method">
@@ -78,7 +80,7 @@ queryClient.invalidateQueries();`;
 			<ul>
 				<li>Ensures a cache entry exists without checking staleness</li>
 			</ul>
-			<pre><code>{ensureQueryExample}</code></pre>
+			<CodeBlock code={ensureQueryExample} lang="typescript" />
 		</article>
 
 		<article class="method">
@@ -86,7 +88,7 @@ queryClient.invalidateQueries();`;
 			<ul>
 				<li>Seeds cache with a synchronous value wrapped as a resolved Promise</li>
 			</ul>
-			<pre><code>{setQueryExample}</code></pre>
+			<CodeBlock code={setQueryExample} lang="typescript" />
 		</article>
 
 		<article class="method">
@@ -94,7 +96,7 @@ queryClient.invalidateQueries();`;
 			<ul>
 				<li>Returns the cached Promise, or <code>undefined</code> if not present</li>
 			</ul>
-			<pre><code>{getQueryExample}</code></pre>
+			<CodeBlock code={getQueryExample} lang="typescript" />
 		</article>
 
 		<article class="method">
@@ -106,7 +108,7 @@ queryClient.invalidateQueries();`;
 			<ul>
 				<li>Prefix-based invalidation; omit argument to invalidate everything</li>
 			</ul>
-			<pre><code>{invalidateExample}</code></pre>
+			<CodeBlock code={invalidateExample} lang="typescript" />
 		</article>
 
 		<article class="method">
@@ -114,7 +116,7 @@ queryClient.invalidateQueries();`;
 			<ul>
 				<li>Clears the entire in-memory query cache</li>
 			</ul>
-			<pre><code>{clearExample}</code></pre>
+			<CodeBlock code={clearExample} lang="typescript" />
 		</article>
 	</div>
 </div>
@@ -150,7 +152,7 @@ queryClient.invalidateQueries();`;
 		margin-bottom: 0;
 	}
 
-	.method pre {
+	.method :global(pre) {
 		margin-top: 0.75rem;
 	}
 </style>
