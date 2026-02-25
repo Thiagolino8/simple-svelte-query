@@ -169,7 +169,7 @@ export class QueryClient {
 	 * @param queryKey Chave da query.
 	 * @param value Valor a persistir no cache.
 	 */
-	setQuery<T>(queryKey: unknown[], value: T) {
+	setQuery<T>(queryKey: unknown[], value: T | Promise<T>) {
 		this.#queries.set(JSON.stringify(queryKey), new CacheEntry(Promise.resolve(value)));
 	}
 

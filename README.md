@@ -44,6 +44,14 @@ const queryClient = new QueryClient();
 
 ## API
 
+Detailed reference: `docs/API.md`.
+
+### Public exports
+
+- `QueryClient`
+- `Query`
+- `queryOptions`
+
 ### `new QueryClient(defaultStaleTime?)`
 
 - defines the global default `staleTime` (ms)
@@ -67,6 +75,11 @@ const queryClient = new QueryClient();
 
 - injects a synchronous value into cache, wrapped with `Promise.resolve(value)`
 
+### `removeQuery(query)`
+
+- removes one cache entry using a `Query` instance
+- useful when you already have a constructed query object
+
 ### `getQuery(queryKey)`
 
 - returns the cached `Promise` (or `undefined`)
@@ -83,6 +96,10 @@ const queryClient = new QueryClient();
 
 - clears all cached queries
 
+### `queryOptions(options)`
+
+- identity helper to preserve `queryKey` literal types and propagate them to `queryFn`
+
 ## Code examples
 
 ### `createQuery` (reactive)
@@ -94,6 +111,18 @@ const productsQuery = queryClient.createQuery(() => ({
 }));
 
 const products = await productsQuery;
+```
+
+### `queryOptions` (typed options helper)
+
+```ts
+const userQueryOptions = queryOptions({
+	queryKey: ['user', userId] as const,
+	queryFn: ({ queryKey: [, id], signal }) =>
+		fetch(`/api/users/${id}`, { signal }).then((r) => r.json())
+});
+
+const user = await queryClient.fetchQuery(userQueryOptions);
 ```
 
 ### `fetchQuery` (imperative)

@@ -2,6 +2,11 @@ import { page } from 'vitest/browser';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { Query, QueryClient, queryOptions } from './query.svelte.ts';
+import {
+	Query as PublicQuery,
+	QueryClient as PublicQueryClient,
+	queryOptions as publicQueryOptions
+} from './index.ts';
 import TestQuery from './TestQuery.svelte';
 
 let savedStaleTime: number;
@@ -12,6 +17,14 @@ beforeEach(() => {
 
 afterEach(() => {
 	QueryClient.staleTime = savedStaleTime;
+});
+
+describe('public API exports', () => {
+	it('exports QueryClient, Query and queryOptions from index', () => {
+		expect(PublicQueryClient).toBe(QueryClient);
+		expect(PublicQuery).toBe(Query);
+		expect(publicQueryOptions).toBe(queryOptions);
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -104,6 +117,11 @@ describe('QueryClient', () => {
 			client.setQuery(['x'], 'first');
 			client.setQuery(['x'], 'second');
 			expect(await client.getQuery(['x'])).toBe('second');
+		});
+
+		it('accepts a promise as value', async () => {
+			client.setQuery(['async'], Promise.resolve('from-promise'));
+			expect(await client.getQuery(['async'])).toBe('from-promise');
 		});
 	});
 
