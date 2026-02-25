@@ -24,6 +24,8 @@ jobs:
 
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps chromium
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: '0'
 
       - name: Type check
         run: bun run check
