@@ -72,14 +72,14 @@ const products = await productsQuery;`;
 		<a href="https://www.npmjs.com/package/simple-svelte-query" target="_blank" rel="noreferrer"
 			><img class="icon" src="https://cdn.simpleicons.org/npm/CB3837" alt="" />npm package</a
 		>
-		<a href="https://github.com/thiagolino8" target="_blank" rel="noreferrer"
+		<a href="https://github.com/Thiagolino8/simple-svelte-query" target="_blank" rel="noreferrer"
 			><img class="icon" src="https://cdn.simpleicons.org/github/ffffff" alt="" />GitHub</a
 		>
 		<a
 			href="https://www.linkedin.com/in/thiago-lino-gomes-5812581bb"
 			target="_blank"
 			rel="noreferrer"
-			><img class="icon" src="https://cdn.simpleicons.org/linkedin/0A66C2" alt="" />LinkedIn</a
+			><img class="icon" src="https://cdn.simpleicons.org/linkedin/0a66c2" alt="" />LinkedIn</a
 		>
 		<a href="https://x.com/Thiagolinog" target="_blank" rel="noreferrer"
 			><img class="icon" src="https://cdn.simpleicons.org/x/ffffff" alt="" />X</a

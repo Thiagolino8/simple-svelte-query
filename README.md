@@ -198,7 +198,7 @@ npm publish
 - X: https://x.com/Thiagolinog
 - Bluesky: https://bsky.app/profile/thiagolino8.bsky.social
 - LinkedIn: https://www.linkedin.com/in/thiago-lino-gomes-5812581bb
-- GitHub: https://github.com/thiagolino8
+- GitHub: https://github.com/Thiagolino8/simple-svelte-query
 - npm package: https://www.npmjs.com/package/simple-svelte-query
 
 ## License
