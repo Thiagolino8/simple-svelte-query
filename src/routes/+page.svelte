@@ -79,7 +79,11 @@ const products = await productsQuery;`;
 			href="https://www.linkedin.com/in/thiago-lino-gomes-5812581bb"
 			target="_blank"
 			rel="noreferrer"
-			><img class="icon" src="https://cdn.simpleicons.org/linkedin/0a66c2" alt="" />LinkedIn</a
+			><img
+				class="icon"
+				src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/linkedin/linkedin-original.svg"
+				alt=""
+			/>LinkedIn</a
 		>
 		<a href="https://x.com/Thiagolinog" target="_blank" rel="noreferrer"
 			><img class="icon" src="https://cdn.simpleicons.org/x/ffffff" alt="" />X</a
