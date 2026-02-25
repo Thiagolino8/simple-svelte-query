@@ -70,21 +70,22 @@ const products = await productsQuery;`;
 	<h2>Links</h2>
 	<div class="links-grid">
 		<a href="https://www.npmjs.com/package/simple-svelte-query" target="_blank" rel="noreferrer"
-			><span class="icon" aria-hidden="true">📦</span>npm package</a
+			><img class="icon" src="https://cdn.simpleicons.org/npm/CB3837" alt="" />npm package</a
 		>
 		<a href="https://github.com/thiagolino8" target="_blank" rel="noreferrer"
-			><span class="icon" aria-hidden="true">🐙</span>GitHub</a
+			><img class="icon" src="https://cdn.simpleicons.org/github/ffffff" alt="" />GitHub</a
 		>
 		<a
 			href="https://www.linkedin.com/in/thiago-lino-gomes-5812581bb"
 			target="_blank"
-			rel="noreferrer"><span class="icon" aria-hidden="true">💼</span>LinkedIn</a
+			rel="noreferrer"
+			><img class="icon" src="https://cdn.simpleicons.org/linkedin/0A66C2" alt="" />LinkedIn</a
 		>
 		<a href="https://x.com/Thiagolinog" target="_blank" rel="noreferrer"
-			><span class="icon" aria-hidden="true">✖️</span>X</a
+			><img class="icon" src="https://cdn.simpleicons.org/x/ffffff" alt="" />X</a
 		>
 		<a href="https://bsky.app/profile/thiagolino8.bsky.social" target="_blank" rel="noreferrer"
-			><span class="icon" aria-hidden="true">🦋</span>Bluesky</a
+			><img class="icon" src="https://cdn.simpleicons.org/bluesky/0285FF" alt="" />Bluesky</a
 		>
 	</div>
 </section>
@@ -308,8 +309,9 @@ const products = await productsQuery;`;
 	}
 
 	.links-grid .icon {
-		font-size: 0.9rem;
-		line-height: 1;
+		width: 0.95rem;
+		height: 0.95rem;
+		flex-shrink: 0;
 	}
 
 	@keyframes fadeUp {
