@@ -65,6 +65,25 @@ const products = await productsQuery;`;
 	<pre><code>{quickExample}</code></pre>
 </section>
 
+<section class="links-section">
+	<h2>Links</h2>
+	<div class="links-grid">
+		<a href="https://www.npmjs.com/package/simple-svelte-query" target="_blank" rel="noreferrer"
+			>npm package</a
+		>
+		<a href="https://github.com/thiagolino8" target="_blank" rel="noreferrer">GitHub</a>
+		<a
+			href="https://www.linkedin.com/in/thiago-lino-gomes-5812581bb"
+			target="_blank"
+			rel="noreferrer">LinkedIn</a
+		>
+		<a href="https://x.com/Thiagolinog" target="_blank" rel="noreferrer">X</a>
+		<a href="https://bsky.app/profile/thiagolino8.bsky.social" target="_blank" rel="noreferrer"
+			>Bluesky</a
+		>
+	</div>
+</section>
+
 <style>
 	.hero {
 		position: relative;
@@ -250,6 +269,35 @@ const products = await productsQuery;`;
 		font-weight: 600;
 		margin-bottom: 0.75rem;
 		letter-spacing: -0.01em;
+	}
+
+	.links-section {
+		margin-top: 1.2rem;
+	}
+
+	.links-grid {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.6rem;
+	}
+
+	.links-grid a {
+		display: inline-flex;
+		text-decoration: none;
+		padding: 0.35rem 0.6rem;
+		border-radius: 8px;
+		border: 1px solid var(--border);
+		background: var(--surface);
+		color: var(--text-2);
+		font-size: 0.82rem;
+		transition:
+			border-color 150ms,
+			color 150ms;
+	}
+
+	.links-grid a:hover {
+		border-color: var(--border-hover);
+		color: var(--text);
 	}
 
 	@keyframes fadeUp {

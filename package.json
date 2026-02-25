@@ -16,6 +16,13 @@
 		"type": "github",
 		"url": "https://github.com/sponsors/Thiagolino8"
 	},
+	"links": {
+		"npm": "https://www.npmjs.com/package/simple-svelte-query",
+		"github": "https://github.com/thiagolino8",
+		"linkedin": "https://www.linkedin.com/in/thiago-lino-gomes-5812581bb",
+		"x": "https://x.com/Thiagolinog",
+		"bluesky": "https://bsky.app/profile/thiagolino8.bsky.social"
+	},
 	"private": false,
 	"scripts": {
 		"dev": "vite dev",
