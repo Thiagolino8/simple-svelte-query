@@ -109,5 +109,8 @@
 	},
 	"dependencies": {
 		"highlight.js": "^11.11.1"
+	},
+	"overrides": {
+		"estree-walker": "2.0.2"
 	}
 }
