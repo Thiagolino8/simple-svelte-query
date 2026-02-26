@@ -7,7 +7,7 @@ type QueryOptions<T, K extends readonly unknown[] = readonly unknown[]> = {
 };
 
 /**
- * Helper com const generics — preserva o tipo literal da `queryKey` e o propaga para `queryFn`.
+ * Helper with const generics — preserves the `queryKey` literal type and propagates it to `queryFn`.
  */
 export const queryOptions = <T, const K extends readonly unknown[]>(
 	options: QueryOptions<T, K>
@@ -23,8 +23,8 @@ export class Query<T, K extends readonly unknown[] = readonly unknown[]> {
 	#queryFn: (context: { signal?: AbortSignal; queryKey: K }) => Promise<T>;
 
 	/**
-	 * Cria uma query com chave serializável, função de busca e `staleTime` opcional.
-	 * @param options Configuração da query.
+	 * Creates a query with a serializable key, fetch function, and optional `staleTime`.
+	 * @param options Query configuration.
 	 */
 	constructor({ staleTime = QueryClient.staleTime, queryKey, queryFn }: QueryOptions<T, K>) {
 		this.#staleTime = staleTime;
@@ -33,32 +33,32 @@ export class Query<T, K extends readonly unknown[] = readonly unknown[]> {
 	}
 
 	/**
-	 * Chave normalizada da query, usada no cache.
+	 * Normalized query key used in the cache.
 	 */
 	get key() {
 		return this.#queryKey;
 	}
 
 	/**
-	 * Chave original da query.
+	 * Original query key.
 	 */
 	get queryKey() {
 		return JSON.parse(this.#queryKey) as K;
 	}
 
 	/**
-	 * Informa se o registro de cache já está expirado.
-	 * @param lastUpdated Timestamp do último update em milissegundos.
-	 * @returns `true` quando excede o `staleTime`.
+	 * Indicates whether the cache entry is already stale.
+	 * @param lastUpdated Last update timestamp in milliseconds.
+	 * @returns `true` when it exceeds `staleTime`.
 	 */
 	isStale(lastUpdated: number) {
 		return Date.now() - lastUpdated > this.#staleTime;
 	}
 
 	/**
-	 * Executa o `queryFn`.
-	 * @param signal Sinal opcional para cancelamento.
-	 * @returns Promise com o valor resolvido da query.
+	 * Executes `queryFn`.
+	 * @param signal Optional signal for cancellation.
+	 * @returns Promise with the resolved query value.
 	 */
 	fetch(signal?: AbortSignal) {
 		return this.#queryFn({ signal, queryKey: this.queryKey });
@@ -92,17 +92,17 @@ export class QueryClient {
 	static staleTime: number = 1000 * 60 * 5;
 
 	/**
-	 * Define o `staleTime` padrão usado pelas novas queries.
-	 * @param defaultStaleTime Tempo padrão de staleness em milissegundos.
+	 * Sets the default `staleTime` used by new queries.
+	 * @param defaultStaleTime Default staleness time in milliseconds.
 	 */
 	constructor(defaultStaleTime = 1000 * 60 * 5) {
 		QueryClient.staleTime = defaultStaleTime;
 	}
 
 	/**
-	 * Cria uma query reativa com leitura/escrita automática no cache.
-	 * @param optionsFn Função que retorna as opções atuais da query.
-	 * @returns Thenable custom da query com `queryKey`.
+	 * Creates a reactive query with automatic cache read/write.
+	 * @param optionsFn Function that returns the current query options.
+	 * @returns Custom query thenable with `queryKey`.
 	 */
 	createQuery<T, const K extends readonly unknown[]>(
 		optionsFn: () => QueryOptions<T, K>
@@ -135,9 +135,9 @@ export class QueryClient {
 	}
 
 	/**
-	 * Busca uma query no cache; recarrega quando inexistente ou stale.
-	 * @param options Opções da query.
-	 * @returns Promise com o valor da query.
+	 * Fetches a query from cache; reloads when missing or stale.
+	 * @param options Query options.
+	 * @returns Promise with the query value.
 	 */
 	fetchQuery<T, const K extends readonly unknown[]>(options: QueryOptions<T, K>) {
 		const query = new Query(options);
@@ -151,9 +151,9 @@ export class QueryClient {
 	}
 
 	/**
-	 * Garante entrada em cache sem checar staleness.
-	 * @param options Opções da query.
-	 * @returns Promise associada à entrada em cache.
+	 * Ensures a cache entry without checking staleness.
+	 * @param options Query options.
+	 * @returns Promise associated with the cache entry.
 	 */
 	ensureQuery<T, const K extends readonly unknown[]>(options: QueryOptions<T, K>) {
 		const query = new Query(options);
@@ -165,49 +165,49 @@ export class QueryClient {
 	}
 
 	/**
-	 * Define valor sincronamente no cache para uma chave de query.
-	 * @param queryKey Chave da query.
-	 * @param value Valor a persistir no cache.
+	 * Sets a value synchronously in cache for a query key.
+	 * @param queryKey Query key.
+	 * @param value Value to persist in cache.
 	 */
 	setQuery<T>(queryKey: unknown[], value: T | Promise<T>) {
 		this.#queries.set(JSON.stringify(queryKey), new CacheEntry(Promise.resolve(value)));
 	}
 
 	/**
-	 * Remove uma query específica do cache.
-	 * @param query Instância da query a remover.
+	 * Removes a specific query from cache.
+	 * @param query Query instance to remove.
 	 */
 	removeQuery<T>(query: Query<T>) {
 		this.#queries.delete(query.key);
 	}
 
 	/**
-	 * Limpa todo o cache de queries.
+	 * Clears the entire query cache.
 	 */
 	clear() {
 		this.#queries.clear();
 	}
 
 	/**
-	 * Retorna a promise em cache para uma chave, se existir.
-	 * @param queryKey Chave da query.
-	 * @returns Promise em cache ou `undefined`.
+	 * Returns the cached promise for a key, if it exists.
+	 * @param queryKey Query key.
+	 * @returns Cached promise or `undefined`.
 	 */
 	getQuery<T>(queryKey: unknown[]) {
 		return this.#queries.get(JSON.stringify(queryKey))?.promise as Promise<T> | undefined;
 	}
 
 	/**
-	 * Invalida exatamente uma query.
-	 * @param queryKey Chave da query.
+	 * Invalidates exactly one query.
+	 * @param queryKey Query key.
 	 */
 	invalidateQuery(queryKey: unknown[]) {
 		this.#queries.get(JSON.stringify(queryKey))?.invalidate();
 	}
 
 	/**
-	 * Invalida todas as queries que começam com o prefixo informado.
-	 * @param queryKey Prefixo da chave; vazio invalida todas.
+	 * Invalidates all queries that start with the given prefix.
+	 * @param queryKey Key prefix; empty invalidates all.
 	 */
 	invalidateQueries(queryKey: unknown[] = []) {
 		const stringKey = JSON.stringify(queryKey).slice(0, -1);
