@@ -17,12 +17,16 @@
 
 <span data-testid="query-key">{JSON.stringify(query.queryKey)}</span>
 
-{#await query}
-	<span data-testid="status">loading</span>
-{:then data}
+<svelte:boundary>
 	<span data-testid="status">success</span>
-	<span data-testid="data">{JSON.stringify(data)}</span>
-{:catch err}
-	<span data-testid="status">error</span>
-	<span data-testid="error">{err?.message}</span>
-{/await}
+	<span data-testid="data">{JSON.stringify(await query)}</span>
+
+	{#snippet pending()}
+		<span data-testid="status">loading</span>
+	{/snippet}
+
+	{#snippet failed(error)}
+		<span data-testid="status">error</span>
+		<span data-testid="error">{error instanceof Error ? error.message : String(error)}</span>
+	{/snippet}
+</svelte:boundary>

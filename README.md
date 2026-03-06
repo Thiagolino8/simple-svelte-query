@@ -13,6 +13,12 @@ This reduces boilerplate in flows that use native Svelte `await`, while keeping 
 bun add simple-svelte-query
 ```
 
+## Requirements
+
+- Svelte 5
+- For direct `await` expressions in `<script>`/markup, enable `compilerOptions.experimental.async = true`
+- Without async mode, consume queries with `{#await query}` instead
+
 ## Quick start
 
 ```ts
@@ -52,15 +58,30 @@ Detailed reference: `docs/API.md`.
 - `Query`
 - `queryOptions`
 
-### `new QueryClient(defaultStaleTime?)`
+### `new Query(options)`
 
-- defines the global default `staleTime` (ms)
+- `options.queryKey`: hierarchical key used by cache
+- `options.queryFn`: async fetcher receiving `{ signal, queryKey }`
+- `options.staleTime?`: optional stale window in milliseconds
+- `options.hashKey?`: optional key hash function
+- instance API: `key` (hashed key), `isStale(lastUpdated)`, `fetch(queryKey, signal?)`
+
+### `new QueryClient(options?)`
+
+- `options.staleTime?`: defines the default `staleTime` (ms)
+- `options.hashKey?`: function to hash `queryKey` into internal string key (default `JSON.stringify`)
+- `options.persist?`: optional persistence config
+- `options.persist.persister`: required when `persist` exists; must implement `get`, `set`, `del`, `clear`
+- `options.persist.hydrate?`: `(value) => Promise<value>` transformation before using persisted values
+- `options.persist.dehydrate?`: `(queryKey, value) => persistedValue | undefined`; when it returns `undefined`, nothing is saved
+- `staleTime` and `hashKey` are stored as static defaults used by new `Query` instances
 
 ### `createQuery(() => options)`
 
 - creates a reactive query
-- returns a `PromiseLike<T>` object with `queryKey`
+- returns a `PromiseLike<T>` object with `queryKey` and `pending`
 - uses `hydratable` internally for SSR/hydration
+- works with `{#await query}` everywhere, or with direct `await query` when Svelte async mode is enabled
 
 ### `fetchQuery(options)`
 
@@ -73,7 +94,7 @@ Detailed reference: `docs/API.md`.
 
 ### `setQuery(queryKey, value)`
 
-- injects a synchronous value into cache, wrapped with `Promise.resolve(value)`
+- injects a value or `Promise` into cache, wrapped with `Promise.resolve(value)`
 
 ### `removeQuery(query)`
 
@@ -91,6 +112,7 @@ Detailed reference: `docs/API.md`.
 ### `invalidateQueries(prefix?)`
 
 - prefix-based invalidation; with no args invalidates everything
+- if you customize `hashKey`, prefix invalidation only works when the hash preserves key prefixes
 
 ### `clear()`
 
@@ -109,6 +131,10 @@ const productsQuery = queryClient.createQuery(() => ({
 	queryKey: ['products', filters],
 	queryFn: ({ signal }) => fetchProducts(filters, signal)
 }));
+
+if (productsQuery.pending) {
+	// key changed and synchronized async work is still settling
+}
 
 const products = await productsQuery;
 ```
@@ -149,6 +175,7 @@ const posts = await postsPromise;
 
 ```ts
 queryClient.setQuery(['user', userId], { id: userId, name: 'Optimistic name' });
+queryClient.setQuery(['user', userId], Promise.resolve({ id: userId, name: 'From promise' }));
 
 const cachedUser = await queryClient.getQuery<{ id: string; name: string }>(['user', userId]);
 ```

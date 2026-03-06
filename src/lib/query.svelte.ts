@@ -6,6 +6,34 @@ type QueryOptions<T, K extends readonly unknown[] = readonly unknown[]> = {
 	queryFn: (context: { signal?: AbortSignal; queryKey: K }) => Promise<T>;
 };
 
+type QueryClientPersistValueHydrator = <T>(value: unknown) => Promise<T>;
+
+type QueryClientPersister = {
+	get: (key: string) => unknown | Promise<unknown>;
+	set: (key: string, value: unknown) => unknown | Promise<unknown>;
+	del: (key: string) => unknown | Promise<unknown>;
+	clear: () => unknown | Promise<unknown>;
+};
+
+type QueryClientPersistOptions = {
+	persister: QueryClientPersister;
+	hydrate?: QueryClientPersistValueHydrator;
+	dehydrate?: (queryKey: readonly unknown[], value: unknown) => unknown | undefined;
+};
+
+type QueryClientOptions = {
+	staleTime?: number;
+	persist?: QueryClientPersistOptions;
+	hashKey?: (queryKey: readonly unknown[]) => string;
+};
+
+type QueryInternalOptions<T, K extends readonly unknown[] = readonly unknown[]> = QueryOptions<
+	T,
+	K
+> & {
+	hashKey?: (queryKey: K) => string;
+};
+
 /**
  * Helper with const generics — preserves the `queryKey` literal type and propagates it to `queryFn`.
  */
@@ -15,6 +43,7 @@ export const queryOptions = <T, const K extends readonly unknown[]>(
 
 export type QueryResult<T> = PromiseLike<T> & {
 	readonly queryKey: readonly unknown[];
+	readonly pending: boolean;
 };
 
 export class Query<T, K extends readonly unknown[] = readonly unknown[]> {
@@ -26,9 +55,14 @@ export class Query<T, K extends readonly unknown[] = readonly unknown[]> {
 	 * Creates a query with a serializable key, fetch function, and optional `staleTime`.
 	 * @param options Query configuration.
 	 */
-	constructor({ staleTime = QueryClient.staleTime, queryKey, queryFn }: QueryOptions<T, K>) {
+	constructor({
+		staleTime = QueryClient.staleTime,
+		queryKey,
+		queryFn,
+		hashKey = QueryClient.hashKey as (queryKey: K) => string
+	}: QueryInternalOptions<T, K>) {
 		this.#staleTime = staleTime;
-		this.#queryKey = JSON.stringify(queryKey);
+		this.#queryKey = hashKey(queryKey);
 		this.#queryFn = queryFn;
 	}
 
@@ -37,13 +71,6 @@ export class Query<T, K extends readonly unknown[] = readonly unknown[]> {
 	 */
 	get key() {
 		return this.#queryKey;
-	}
-
-	/**
-	 * Original query key.
-	 */
-	get queryKey() {
-		return JSON.parse(this.#queryKey) as K;
 	}
 
 	/**
@@ -57,14 +84,14 @@ export class Query<T, K extends readonly unknown[] = readonly unknown[]> {
 
 	/**
 	 * Executes `queryFn`.
+	 * @param queryKey Original query key used for the fetch.
 	 * @param signal Optional signal for cancellation.
 	 * @returns Promise with the resolved query value.
 	 */
-	fetch(signal?: AbortSignal) {
-		return this.#queryFn({ signal, queryKey: this.queryKey });
+	fetch(queryKey: K, signal?: AbortSignal) {
+		return this.#queryFn({ signal, queryKey });
 	}
 }
-
 class CacheEntry<T> {
 	#promise: Promise<T>;
 	#createdAt = $state(Date.now());
@@ -90,19 +117,72 @@ export class QueryClient {
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	#queries = new Map<string, CacheEntry<unknown>>();
 	static staleTime: number = 1000 * 60 * 5;
+	static hashKey: (queryKey: readonly unknown[]) => string = JSON.stringify;
+	#persist: QueryClientPersistOptions | undefined;
 
 	/**
-	 * Sets the default `staleTime` used by new queries.
-	 * @param defaultStaleTime Default staleness time in milliseconds.
+	 * Sets the global defaults used by new queries and stores optional persistence.
+	 * @param options Client options.
 	 */
-	constructor(defaultStaleTime = 1000 * 60 * 5) {
-		QueryClient.staleTime = defaultStaleTime;
+	constructor({
+		staleTime = 1000 * 60 * 5,
+		persist,
+		hashKey = JSON.stringify
+	}: QueryClientOptions = {}) {
+		QueryClient.staleTime = staleTime;
+		QueryClient.hashKey = hashKey;
+		this.#persist = persist;
+	}
+
+	#getHydrator() {
+		return this.#persist?.hydrate ?? (<T>(value: unknown) => Promise.resolve(value as T));
+	}
+
+	#persistResolvedValue(queryKey: readonly unknown[], value: unknown) {
+		const persist = this.#persist;
+		if (!persist) return;
+		const cacheKey = QueryClient.hashKey(queryKey);
+		const dehydrated = persist.dehydrate ? persist.dehydrate(queryKey, value) : value;
+		if (dehydrated === undefined) return;
+		void Promise.resolve(persist.persister.set(cacheKey, dehydrated)).catch(() => {});
+	}
+
+	#persistResolvedEntry(queryKey: readonly unknown[], sourceEntry: CacheEntry<unknown>) {
+		if (!this.#persist) return;
+		const cacheKey = QueryClient.hashKey(queryKey);
+		void sourceEntry.promise
+			.then((sourceValue) => {
+				const currentEntry = this.#queries.get(cacheKey);
+				if (currentEntry !== sourceEntry) return;
+				this.#persistResolvedValue(queryKey, sourceValue);
+			})
+			.catch(() => {});
+	}
+
+	#createHydratableEntry<T, const K extends readonly unknown[]>(
+		query: Query<T, K>,
+		fetcher: () => Promise<T>
+	) {
+		const persist = this.#persist;
+		if (!persist) return new CacheEntry<T>(hydratable(query.key, fetcher));
+		const hydratedPromise = Promise.resolve(persist.persister.get(query.key))
+			.then((persistedValue) =>
+				persistedValue === undefined
+					? hydratable(query.key, fetcher)
+					: this.#getHydrator()<T>(persistedValue)
+			)
+			.catch(() => hydratable(query.key, fetcher));
+		return new CacheEntry<T>(hydratedPromise);
+	}
+
+	#setEntry<T>(cacheKey: string, entry: CacheEntry<T>) {
+		this.#queries.set(cacheKey, entry);
 	}
 
 	/**
 	 * Creates a reactive query with automatic cache read/write.
 	 * @param optionsFn Function that returns the current query options.
-	 * @returns Custom query thenable with `queryKey`.
+	 * @returns Custom query thenable with `queryKey` and `pending`.
 	 */
 	createQuery<T, const K extends readonly unknown[]>(
 		optionsFn: () => QueryOptions<T, K>
@@ -110,19 +190,25 @@ export class QueryClient {
 		const queries = this.#queries;
 		const { queryKey, ...rest } = $derived(optionsFn());
 		const query = $derived(new Query({ queryKey, ...untrack(() => rest) }));
-		const signal = $derived((void query.key, getAbortSignal()));
+		const signal = $derived((void queryKey, getAbortSignal()));
 		const entry = $derived.by(() => {
 			const cached = queries.get(query.key) as CacheEntry<T> | undefined;
 			if (cached && !query.isStale(cached.createdAt)) return cached;
-			const newEntry = new CacheEntry(
-				cached ? query.fetch(signal) : hydratable(query.key, () => query.fetch(signal))
-			);
-			queries.set(query.key, newEntry);
+			const newEntry = cached
+				? new CacheEntry(query.fetch(queryKey, signal))
+				: this.#createHydratableEntry(query, () => query.fetch(queryKey, signal));
+			this.#setEntry(query.key, newEntry);
+			this.#persistResolvedEntry(queryKey, newEntry);
 			return newEntry;
 		});
 		return {
 			get queryKey() {
-				return query.queryKey;
+				return queryKey;
+			},
+			get pending() {
+				return $state
+					.eager(optionsFn().queryKey)
+					.some((key, index) => key !== optionsFn().queryKey[index]);
 			},
 			get then() {
 				const promise = entry.promise as Promise<T>;
@@ -141,12 +227,17 @@ export class QueryClient {
 	 */
 	fetchQuery<T, const K extends readonly unknown[]>(options: QueryOptions<T, K>) {
 		const query = new Query(options);
-		const entry = this.#queries.has(query.key)
-			? query.isStale((this.#queries.get(query.key)! as CacheEntry<T>).createdAt)
-				? new CacheEntry(query.fetch())
-				: (this.#queries.get(query.key)! as CacheEntry<T>)
-			: new CacheEntry(hydratable(query.key, () => query.fetch()));
-		if (this.#queries.get(query.key) !== entry) this.#queries.set(query.key, entry);
+		const cached = this.#queries.get(query.key) as CacheEntry<T> | undefined;
+		const entry =
+			cached && !query.isStale(cached.createdAt)
+				? cached
+				: cached
+					? new CacheEntry(query.fetch(options.queryKey))
+					: this.#createHydratableEntry(query, () => query.fetch(options.queryKey));
+		if (this.#queries.get(query.key) !== entry) {
+			this.#setEntry(query.key, entry);
+		}
+		this.#persistResolvedEntry(options.queryKey, entry);
 		return entry.promise as Promise<T>;
 	}
 
@@ -159,8 +250,11 @@ export class QueryClient {
 		const query = new Query(options);
 		const entry = this.#queries.has(query.key)
 			? (this.#queries.get(query.key)! as CacheEntry<T>)
-			: new CacheEntry(hydratable(query.key, () => query.fetch()));
-		if (this.#queries.get(query.key) !== entry) this.#queries.set(query.key, entry);
+			: this.#createHydratableEntry(query, () => query.fetch(options.queryKey));
+		if (this.#queries.get(query.key) !== entry) {
+			this.#setEntry(query.key, entry);
+		}
+		this.#persistResolvedEntry(options.queryKey, entry);
 		return this.#queries.get(query.key)!.promise as Promise<T>;
 	}
 
@@ -170,7 +264,10 @@ export class QueryClient {
 	 * @param value Value to persist in cache.
 	 */
 	setQuery<T>(queryKey: unknown[], value: T | Promise<T>) {
-		this.#queries.set(JSON.stringify(queryKey), new CacheEntry(Promise.resolve(value)));
+		const cacheKey = QueryClient.hashKey(queryKey);
+		const entry = new CacheEntry(Promise.resolve(value));
+		this.#setEntry(cacheKey, entry);
+		this.#persistResolvedEntry(queryKey, entry);
 	}
 
 	/**
@@ -179,6 +276,8 @@ export class QueryClient {
 	 */
 	removeQuery<T>(query: Query<T>) {
 		this.#queries.delete(query.key);
+		if (!this.#persist) return;
+		void Promise.resolve(this.#persist.persister.del(query.key)).catch(() => {});
 	}
 
 	/**
@@ -186,6 +285,8 @@ export class QueryClient {
 	 */
 	clear() {
 		this.#queries.clear();
+		if (!this.#persist) return;
+		void Promise.resolve(this.#persist.persister.clear()).catch(() => {});
 	}
 
 	/**
@@ -194,7 +295,7 @@ export class QueryClient {
 	 * @returns Cached promise or `undefined`.
 	 */
 	getQuery<T>(queryKey: unknown[]) {
-		return this.#queries.get(JSON.stringify(queryKey))?.promise as Promise<T> | undefined;
+		return this.#queries.get(QueryClient.hashKey(queryKey))?.promise as Promise<T> | undefined;
 	}
 
 	/**
@@ -202,18 +303,25 @@ export class QueryClient {
 	 * @param queryKey Query key.
 	 */
 	invalidateQuery(queryKey: unknown[]) {
-		this.#queries.get(JSON.stringify(queryKey))?.invalidate();
+		this.#queries.get(QueryClient.hashKey(queryKey))?.invalidate();
 	}
 
 	/**
 	 * Invalidates all queries that start with the given prefix.
+	 * For custom `hashKey`, prefix invalidation only works when the hash preserves
+	 * prefix ordering (for example, adding a prefix to `JSON.stringify(queryKey)`).
 	 * @param queryKey Key prefix; empty invalidates all.
 	 */
 	invalidateQueries(queryKey: unknown[] = []) {
-		const stringKey = JSON.stringify(queryKey).slice(0, -1);
-		this.#queries.forEach((_, key) => {
-			if (key.startsWith(stringKey)) {
-				this.#queries.get(key)?.invalidate();
+		const hashedPrefix =
+			queryKey.length === 0
+				? ''
+				: QueryClient.hashKey(queryKey).endsWith(']')
+					? QueryClient.hashKey(queryKey).slice(0, -1)
+					: QueryClient.hashKey(queryKey);
+		this.#queries.forEach((_, hash) => {
+			if (hash.startsWith(hashedPrefix)) {
+				this.#queries.get(hash)?.invalidate();
 			}
 		});
 	}

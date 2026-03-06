@@ -2,7 +2,7 @@
 	import CodeBlock from '$lib/CodeBlock.svelte';
 	import { QueryClient } from '../../lib/index.ts';
 
-	const queryClient = new QueryClient(1000 * 20);
+	const queryClient = new QueryClient({ staleTime: 1000 * 20 });
 
 	let view1 = $state<'live' | 'code'>('live');
 	let view2 = $state<'live' | 'code'>('live');
@@ -20,6 +20,8 @@
 				(res) => res.json() as Promise<{ products: { id: number; title: string; price: number }[] }>
 			)
 	}));
+
+	$inspect(productsQuery.pending, 'productsQuery pending');
 
 	const searchCode = `let search = $state('phone');
 
@@ -145,7 +147,7 @@ const prefetch = (id: number) =>
 					<input type="text" bind:value={search} placeholder="phone, laptop, watch..." />
 				</label>
 
-				<ul class="results" data-loading={String(!!$effect.pending())}>
+				<ul class="results" data-loading={productsQuery.pending}>
 					{#each (await productsQuery).products.slice(0, 6) as product (product.id)}
 						<li>
 							<strong>{product.title}</strong>
@@ -195,7 +197,7 @@ const prefetch = (id: number) =>
 					{/each}
 				</div>
 
-				<ul class="results" data-loading={String(!!$effect.pending())}>
+				<ul class="results" data-loading={categoryQuery.pending}>
 					{#each (await categoryQuery).products.slice(0, 5) as product (product.id)}
 						<li>
 							<strong>{product.title}</strong>
@@ -244,7 +246,7 @@ const prefetch = (id: number) =>
 				</div>
 
 				{#each [await userQuery] as user (user.id)}
-					<div class="user-detail" data-loading={String(!!$effect.pending())}>
+					<div class="user-detail" data-loading={userQuery.pending}>
 						<strong>{user.firstName} {user.lastName}</strong>
 						<span>{user.email} · {user.age} years old</span>
 					</div>

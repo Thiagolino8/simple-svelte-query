@@ -1,6 +1,6 @@
 {
 	"name": "simple-svelte-query",
-	"version": "0.0.1",
+	"version": "0.1.0",
 	"description": "Promise-first query/cache library for Svelte 5 inspired by TanStack Query",
 	"license": "MIT",
 	"author": "Thiagolino8",

@@ -10,13 +10,16 @@ import {
 import TestQuery from './TestQuery.svelte';
 
 let savedStaleTime: number;
+let savedHashKey: (queryKey: readonly unknown[]) => string;
 
 beforeEach(() => {
 	savedStaleTime = QueryClient.staleTime;
+	savedHashKey = QueryClient.hashKey;
 });
 
 afterEach(() => {
 	QueryClient.staleTime = savedStaleTime;
+	QueryClient.hashKey = savedHashKey;
 });
 
 describe('public API exports', () => {
@@ -49,11 +52,6 @@ describe('Query', () => {
 		expect(q.key).toBe('["users",1]');
 	});
 
-	it('deserializes queryKey', () => {
-		const q = new Query({ queryKey: ['products', 'phone'], queryFn: () => Promise.resolve(null) });
-		expect(q.queryKey).toEqual(['products', 'phone']);
-	});
-
 	it('isStale → false within staleTime', () => {
 		const q = new Query({ queryKey: ['t'], staleTime: 5000, queryFn: () => Promise.resolve(0) });
 		expect(q.isStale(Date.now())).toBe(false);
@@ -68,7 +66,7 @@ describe('Query', () => {
 		const fn = vi.fn().mockResolvedValue('data');
 		const q = new Query({ queryKey: ['k'], queryFn: fn });
 		const ctrl = new AbortController();
-		const result = await q.fetch(ctrl.signal);
+		const result = await q.fetch(['k'], ctrl.signal);
 
 		expect(fn).toHaveBeenCalledWith({ signal: ctrl.signal, queryKey: ['k'] });
 		expect(result).toBe('data');
@@ -90,14 +88,20 @@ describe('QueryClient', () => {
 	let client: QueryClient;
 
 	beforeEach(() => {
-		client = new QueryClient(5000);
+		client = new QueryClient({ staleTime: 5000 });
 	});
 
 	// -- constructor --------------------------------------------------------
 	describe('constructor', () => {
 		it('sets static staleTime', () => {
-			new QueryClient(12345);
+			new QueryClient({ staleTime: 12345 });
 			expect(QueryClient.staleTime).toBe(12345);
+		});
+
+		it('sets static hashKey', () => {
+			const hashKey = (queryKey: readonly unknown[]) => `h:${JSON.stringify(queryKey)}`;
+			new QueryClient({ hashKey });
+			expect(QueryClient.hashKey).toBe(hashKey);
 		});
 	});
 
@@ -167,7 +171,7 @@ describe('QueryClient', () => {
 		});
 
 		it('refetches when stale', async () => {
-			const shortClient = new QueryClient(0);
+			const shortClient = new QueryClient({ staleTime: 0 });
 			await shortClient.fetchQuery({
 				queryKey: ['f3'],
 				queryFn: vi.fn().mockResolvedValue('v1')
@@ -194,7 +198,7 @@ describe('QueryClient', () => {
 		});
 
 		it('returns existing entry regardless of staleness', async () => {
-			const shortClient = new QueryClient(0);
+			const shortClient = new QueryClient({ staleTime: 0 });
 			await shortClient.ensureQuery({
 				queryKey: ['e2'],
 				queryFn: vi.fn().mockResolvedValue('original')
@@ -207,6 +211,184 @@ describe('QueryClient', () => {
 
 			expect(result).toBe('original');
 			expect(fn2).not.toHaveBeenCalled();
+		});
+	});
+
+	// -- persistence --------------------------------------------------------
+	describe('persist', () => {
+		it('hydrates from persister on first fetchQuery', async () => {
+			const persister = {
+				get: vi.fn().mockResolvedValue('persisted-value'),
+				set: vi.fn(),
+				del: vi.fn(),
+				clear: vi.fn()
+			};
+			const hydrate = vi.fn().mockResolvedValue('hydrated-value');
+			const persistentClient = new QueryClient({
+				persist: { persister, hydrate }
+			});
+			const queryFn = vi.fn().mockResolvedValue('network-value');
+
+			const value = await persistentClient.fetchQuery({
+				queryKey: ['persist', 1],
+				queryFn
+			});
+
+			expect(value).toBe('hydrated-value');
+			expect(persister.get).toHaveBeenCalledWith('["persist",1]');
+			expect(hydrate).toHaveBeenCalledWith('persisted-value');
+			expect(queryFn).not.toHaveBeenCalled();
+		});
+
+		it('persists resolved value from fetchQuery', async () => {
+			const persister = {
+				get: vi.fn().mockResolvedValue(undefined),
+				set: vi.fn().mockResolvedValue(undefined),
+				del: vi.fn(),
+				clear: vi.fn()
+			};
+			const dehydrate = vi.fn((queryKey: readonly unknown[], value: unknown) => ({
+				queryKey,
+				value
+			}));
+			const persistentClient = new QueryClient({
+				persist: { persister, dehydrate }
+			});
+
+			await persistentClient.fetchQuery({
+				queryKey: ['persist', 2],
+				queryFn: vi.fn().mockResolvedValue('network-data')
+			});
+			await Promise.resolve();
+
+			expect(dehydrate).toHaveBeenCalledWith(['persist', 2], 'network-data');
+			expect(persister.set).toHaveBeenCalledWith('["persist",2]', {
+				queryKey: ['persist', 2],
+				value: 'network-data'
+			});
+		});
+
+		it('does not persist when dehydrate returns undefined', async () => {
+			const persister = {
+				get: vi.fn().mockResolvedValue(undefined),
+				set: vi.fn(),
+				del: vi.fn(),
+				clear: vi.fn()
+			};
+			const persistentClient = new QueryClient({
+				persist: {
+					persister,
+					dehydrate: () => undefined
+				}
+			});
+
+			await persistentClient.fetchQuery({
+				queryKey: ['persist', 3],
+				queryFn: vi.fn().mockResolvedValue('network-data')
+			});
+			await Promise.resolve();
+
+			expect(persister.set).not.toHaveBeenCalled();
+		});
+
+		it('removeQuery calls persister.del and clear calls persister.clear', async () => {
+			const persister = {
+				get: vi.fn(),
+				set: vi.fn(),
+				del: vi.fn().mockResolvedValue(undefined),
+				clear: vi.fn().mockResolvedValue(undefined)
+			};
+			const persistentClient = new QueryClient({
+				persist: { persister }
+			});
+			const query = new Query<number>({
+				queryKey: ['persist', 4],
+				queryFn: () => Promise.resolve(1)
+			});
+
+			persistentClient.setQuery(['persist', 4], 1);
+			persistentClient.removeQuery(query);
+			persistentClient.clear();
+			await Promise.resolve();
+
+			expect(persister.del).toHaveBeenCalledWith('["persist",4]');
+			expect(persister.clear).toHaveBeenCalledOnce();
+		});
+
+		it('invalidate does not call persister.del', async () => {
+			const persister = {
+				get: vi.fn(),
+				set: vi.fn(),
+				del: vi.fn(),
+				clear: vi.fn()
+			};
+			const persistentClient = new QueryClient({
+				persist: { persister }
+			});
+
+			persistentClient.setQuery(['persist', 5], 1);
+			persistentClient.invalidateQuery(['persist', 5]);
+			persistentClient.invalidateQueries(['persist']);
+			await Promise.resolve();
+
+			expect(persister.del).not.toHaveBeenCalled();
+		});
+
+		it('uses current resolved cache value for persistence when previous promise resolves later', async () => {
+			let resolveFirst: (value: string) => void = () => undefined;
+			const firstPromise = new Promise<string>((resolve) => {
+				resolveFirst = resolve;
+			});
+			const persister = {
+				get: vi.fn().mockResolvedValue(undefined),
+				set: vi.fn().mockResolvedValue(undefined),
+				del: vi.fn(),
+				clear: vi.fn()
+			};
+			const persistentClient = new QueryClient({
+				persist: { persister }
+			});
+
+			const firstFetch = persistentClient.fetchQuery({
+				queryKey: ['race'],
+				staleTime: 0,
+				queryFn: () => firstPromise
+			});
+			await new Promise((resolve) => setTimeout(resolve, 1));
+			const secondFetch = persistentClient.fetchQuery({
+				queryKey: ['race'],
+				staleTime: 0,
+				queryFn: vi.fn().mockResolvedValue('latest')
+			});
+			await secondFetch;
+			resolveFirst('old');
+			await firstFetch;
+			await Promise.resolve();
+
+			expect(persister.set).toHaveBeenCalledWith('["race"]', 'latest');
+		});
+
+		it('uses hashKey for persister key', async () => {
+			const hashKey = (queryKey: readonly unknown[]) => `h:${JSON.stringify(queryKey)}`;
+			const persister = {
+				get: vi.fn().mockResolvedValue(undefined),
+				set: vi.fn().mockResolvedValue(undefined),
+				del: vi.fn(),
+				clear: vi.fn()
+			};
+			const persistentClient = new QueryClient({
+				hashKey,
+				persist: { persister }
+			});
+
+			await persistentClient.fetchQuery({
+				queryKey: ['persist', 'hash'],
+				queryFn: vi.fn().mockResolvedValue('network-data')
+			});
+			await Promise.resolve();
+
+			expect(persister.get).toHaveBeenCalledWith('h:["persist","hash"]');
+			expect(persister.set).toHaveBeenCalledWith('h:["persist","hash"]', 'network-data');
 		});
 	});
 
