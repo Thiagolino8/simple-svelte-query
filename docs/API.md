@@ -34,6 +34,7 @@
 
 - `queryKey` is hierarchical; cache key hashing defaults to `JSON.stringify` and can be customized with `options.hashKey`.
 - `createQuery` returns a `PromiseLike<T>` with `queryKey` and `pending`.
+- `pending` is intended for UI feedback while a reactive `queryKey` change is still settling.
 - `createQuery` can be consumed with `{#await query}` or direct `await query` when Svelte async mode is enabled.
 - cache stores promises directly.
 - invalidation can be exact (`invalidateQuery`) or by prefix (`invalidateQueries`).

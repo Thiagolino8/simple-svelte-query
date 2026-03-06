@@ -21,8 +21,6 @@
 			)
 	}));
 
-	$inspect(productsQuery.pending, 'productsQuery pending');
-
 	const searchCode = `let search = $state('phone');
 
 const productsQuery = queryClient.createQuery(() => ({
@@ -32,10 +30,11 @@ const productsQuery = queryClient.createQuery(() => ({
       .then((r) => r.json())
 }));
 
-// in template — direct await, no wrapper hooks
-{#each (await productsQuery).products as product}
-  <li>{product.title}</li>
-{/each}
+<ul class="results" style:opacity={productsQuery.pending ? 0.4 : 1}>
+  {#each (await productsQuery).products as product}
+    <li>{product.title}</li>
+  {/each}
+</ul>
 
 // exact: invalidates ['products', 'phone'] only
 queryClient.invalidateQuery(['products', search]);
@@ -131,7 +130,8 @@ const prefetch = (id: number) =>
 			<div>
 				<h2>Reactive Search</h2>
 				<p>
-					<code>createQuery</code> with reactive keys — exact vs prefix invalidation.
+					<code>createQuery</code> with reactive keys; the code example shows how to surface
+					<code>pending</code> in the UI.
 				</p>
 			</div>
 			<div class="toggle">

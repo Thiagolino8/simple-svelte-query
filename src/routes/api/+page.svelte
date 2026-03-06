@@ -6,11 +6,11 @@
   queryFn: ({ signal, queryKey: [, currentFilters] }) => fetchProducts(currentFilters, signal)
 }));
 
-if (productsQuery.pending) {
-  // queryKey changed and async work is still settling
-}
-
-const products = await productsQuery;`;
+<ul style:opacity={productsQuery.pending ? 0.4 : 1}>
+  {#each (await productsQuery).items as item}
+    <li>{item.name}</li>
+  {/each}
+</ul>`;
 
 	const fetchQueryExample = String.raw`const user = await queryClient.fetchQuery({
   queryKey: ['user', userId],

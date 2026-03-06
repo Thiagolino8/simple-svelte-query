@@ -41,7 +41,7 @@ const queryClient = new QueryClient();
 	}));
 </script>
 
-<ul>
+<ul style:opacity={productsQuery.pending ? 0.4 : 1}>
 	{#each (await productsQuery).items as item}
 		<li>{item.name}</li>
 	{/each}
@@ -144,9 +144,8 @@ const productsQuery = queryClient.createQuery(() => ({
 	queryFn: ({ signal }) => fetchProducts(filters, signal)
 }));
 
-if (productsQuery.pending) {
-	// key changed and synchronized async work is still settling
-}
+// useful for dimming stale data while the next key settles
+const style = productsQuery.pending ? 0.4 : 1;
 
 const products = await productsQuery;
 ```
@@ -224,9 +223,11 @@ queryClient.invalidateQueries(); // all
 
 <button onclick={() => (category = 'laptops')}>Switch category</button>
 
-{#each (await productsQuery).items as item}
-	<div>{item.name}</div>
-{/each}
+<div style:opacity={productsQuery.pending ? 0.4 : 1}>
+	{#each (await productsQuery).items as item}
+		<div>{item.name}</div>
+	{/each}
+</div>
 ```
 
 ## Similarities and differences vs TanStack Query

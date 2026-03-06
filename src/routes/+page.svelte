@@ -14,7 +14,11 @@ const productsQuery = queryClient.createQuery(() => ({
       .then((r) => r.json())
 }));
 
-const products = await productsQuery;`;
+<ul style:opacity={productsQuery.pending ? 0.4 : 1}>
+  {#each (await productsQuery).items as item}
+    <li>{item.name}</li>
+  {/each}
+</ul>`;
 </script>
 
 <svelte:head>
