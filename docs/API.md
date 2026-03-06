@@ -39,6 +39,7 @@
 - invalidation can be exact (`invalidateQuery`) or by prefix (`invalidateQueries`).
 - if you customize `hashKey`, prefix invalidation only works when the hash preserves prefixes.
 - `options.persist` is optional; when set, `persister` is required with `get/set/del/clear`.
+- `hydrate(value)` lives inside `options.persist` and transforms persisted values before reuse.
 - `setQuery` accepts either a value or a `Promise`.
-- `dehydrate(queryKey, value)` can return `undefined` to skip persistence.
+- `dehydrate(queryKey, value)` lives inside `options.persist` and can return `undefined` to skip persistence.
 - `staleTime` and `hashKey` configured in `new QueryClient(...)` become static defaults for new `Query` instances.

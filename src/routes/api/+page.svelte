@@ -102,12 +102,13 @@ queryClient.removeQuery(query);`;
 					<code>get/set/del/clear</code>
 				</li>
 				<li>
-					<code>hydrate</code>: optional function that receives persisted value and returns a
-					Promise
+					<code>persist.hydrate</code>: optional function that receives persisted value and returns
+					a Promise
 				</li>
 				<li>
-					<code>dehydrate</code>: optional function receiving <code>queryKey</code> and resolved
-					query value; returning <code>undefined</code> skips save
+					<code>persist.dehydrate</code>: optional function receiving
+					<code>queryKey</code> and resolved query value; returning
+					<code>undefined</code> skips save
 				</li>
 				<li>
 					<code>staleTime</code> and <code>hashKey</code> become static defaults for new queries

@@ -74,6 +74,18 @@ Detailed reference: `docs/API.md`.
 - `options.persist.persister`: required when `persist` exists; must implement `get`, `set`, `del`, `clear`
 - `options.persist.hydrate?`: `(value) => Promise<value>` transformation before using persisted values
 - `options.persist.dehydrate?`: `(queryKey, value) => persistedValue | undefined`; when it returns `undefined`, nothing is saved
+- expected shape:
+
+```ts
+new QueryClient({
+	persist: {
+		persister,
+		hydrate,
+		dehydrate
+	}
+});
+```
+
 - `staleTime` and `hashKey` are stored as static defaults used by new `Query` instances
 
 ### `createQuery(() => options)`
