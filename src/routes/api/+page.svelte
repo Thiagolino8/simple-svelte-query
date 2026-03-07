@@ -1,13 +1,15 @@
 <script lang="ts">
 	import CodeBlock from '$lib/CodeBlock.svelte';
 
-	const createQueryExample = String.raw`const productsQuery = queryClient.createQuery(() => ({
+	const createQueryExample = String.raw`<script lang="ts">
+const productsQuery = queryClient.createQuery(() => ({
   queryKey: ['products', filters],
   queryFn: ({ signal, queryKey: [, currentFilters] }) => fetchProducts(currentFilters, signal)
 }));
+${'</' + 'script>'}
 
 <ul style:opacity={productsQuery.pending ? 0.4 : 1}>
-  {#each (await productsQuery).items as item}
+  {#each (await productsQuery).items as item (item.name)}
     <li>{item.name}</li>
   {/each}
 </ul>`;
@@ -130,7 +132,7 @@ queryClient.removeQuery(query);`;
 				<li>Tracks key changes from reactive state and updates cache automatically</li>
 				<li>Uses <code>hydratable</code> internally for SSR and hydration reuse</li>
 			</ul>
-			<CodeBlock code={createQueryExample} lang="typescript" />
+			<CodeBlock code={createQueryExample} lang="svelte" />
 		</article>
 
 		<article class="method">

@@ -11,6 +11,9 @@ This reduces boilerplate in flows that use native Svelte `await`, while keeping 
 
 ```sh
 bun add simple-svelte-query
+npm install simple-svelte-query
+pnpm add simple-svelte-query
+yarn add simple-svelte-query
 ```
 
 ## Requirements

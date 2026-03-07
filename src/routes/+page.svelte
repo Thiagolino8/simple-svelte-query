@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import CodeBlock from '$lib/CodeBlock.svelte';
+	import InstallTabs from '$lib/InstallTabs.svelte';
 
-	const quickExample = `import { QueryClient } from 'simple-svelte-query';
+	const quickExample = String.raw`<script lang="ts">
+import { QueryClient } from 'simple-svelte-query';
 
 const queryClient = new QueryClient();
 let search = $state('phone');
@@ -13,9 +15,10 @@ const productsQuery = queryClient.createQuery(() => ({
     fetch('/api/products?q=' + search, { signal })
       .then((r) => r.json())
 }));
+${'</' + 'script>'}
 
 <ul style:opacity={productsQuery.pending ? 0.4 : 1}>
-  {#each (await productsQuery).items as item}
+  {#each (await productsQuery).items as item (item.name)}
     <li>{item.name}</li>
   {/each}
 </ul>`;
@@ -35,12 +38,22 @@ const productsQuery = queryClient.createQuery(() => ({
 		<br />
 		Native <code>await</code> flows, zero boilerplate.
 	</p>
-	<div class="actions">
-		<div class="install">
-			<span class="prompt">$</span>
-			<code>bun add simple-svelte-query</code>
-		</div>
-		<a class="cta" href={resolve('/api')}>Read the docs <span class="arrow">→</span></a>
+	<div class="hero-panels">
+		<section class="install-panel">
+			<div class="panel-copy">
+				<span class="panel-label">Install</span>
+				<p>Pick your package manager and copy the command.</p>
+			</div>
+			<InstallTabs packageName="simple-svelte-query" />
+		</section>
+
+		<section class="docs-panel">
+			<div class="panel-copy">
+				<span class="panel-label">Documentation</span>
+				<p>Go straight to the API reference and examples.</p>
+			</div>
+			<a class="cta" href={resolve('/api')}>Read the docs <span class="arrow">→</span></a>
+		</section>
 	</div>
 </div>
 
@@ -67,7 +80,7 @@ const productsQuery = queryClient.createQuery(() => ({
 
 <section class="example-section">
 	<h2>Quick start</h2>
-	<CodeBlock code={quickExample} lang="typescript" />
+	<CodeBlock code={quickExample} lang="svelte" />
 </section>
 
 <section class="links-section">
@@ -161,51 +174,70 @@ const productsQuery = queryClient.createQuery(() => ({
 		color: #c9cdd6;
 	}
 
-	.actions {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 0.75rem;
-		flex-wrap: wrap;
+	.hero-panels {
+		display: grid;
+		grid-template-columns: minmax(0, 1.6fr) minmax(16rem, 0.9fr);
+		align-items: stretch;
+		gap: 1rem;
+		width: min(100%, 52rem);
+		margin: 0 auto;
 	}
 
-	.install {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.5rem;
-		padding: 0.55rem 1rem;
-		background: var(--code-bg);
+	.install-panel,
+	.docs-panel {
+		display: grid;
+		gap: 0.8rem;
+		padding: 1rem;
+		background: linear-gradient(180deg, rgba(16, 16, 20, 0.92), rgba(10, 10, 13, 0.92));
 		border: 1px solid var(--border);
-		border-radius: 8px;
-		font-size: 0.84rem;
+		border-radius: 16px;
+		text-align: left;
 	}
 
-	.install code {
-		color: #b8bcc6;
+	.docs-panel {
+		align-content: space-between;
 	}
 
-	.prompt {
+	.panel-copy {
+		display: grid;
+		gap: 0.3rem;
+	}
+
+	.panel-label {
+		font-size: 0.72rem;
+		font-weight: 700;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
 		color: var(--accent);
-		user-select: none;
-		font-family: var(--font-mono);
+	}
+
+	.panel-copy p {
+		margin: 0;
+		color: var(--text-2);
+		font-size: 0.9rem;
+		line-height: 1.55;
 	}
 
 	.cta {
 		display: inline-flex;
 		align-items: center;
+		justify-content: center;
 		gap: 0.35rem;
-		padding: 0.55rem 1rem;
+		padding: 0.8rem 1rem;
 		background: var(--accent);
 		color: #fff;
 		font-size: 0.86rem;
 		font-weight: 550;
-		border-radius: 8px;
+		border-radius: 12px;
 		text-decoration: none;
-		transition: background 150ms;
+		transition:
+			background 150ms,
+			transform 150ms;
 	}
 
 	.cta:hover {
 		background: var(--accent-hover);
+		transform: translateY(-1px);
 	}
 
 	.arrow {
@@ -347,19 +379,25 @@ const productsQuery = queryClient.createQuery(() => ({
 		}
 	}
 
+	@media (max-width: 768px) {
+		.hero-panels {
+			grid-template-columns: 1fr;
+		}
+
+		:global(.install-tabs),
+		.docs-panel,
+		.cta {
+			width: 100%;
+		}
+	}
+
 	@media (max-width: 480px) {
 		h1 {
 			font-size: 2rem;
 		}
 
-		.actions {
-			flex-direction: column;
-		}
-
-		.install,
-		.cta {
-			width: 100%;
-			justify-content: center;
+		.hero {
+			padding-top: 2.4rem;
 		}
 	}
 </style>

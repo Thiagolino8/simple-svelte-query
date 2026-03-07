@@ -21,7 +21,8 @@
 			)
 	}));
 
-	const searchCode = `let search = $state('phone');
+	const searchCode = String.raw`<script lang="ts">
+let search = $state('phone');
 
 const productsQuery = queryClient.createQuery(() => ({
   queryKey: ['products', search],
@@ -30,17 +31,18 @@ const productsQuery = queryClient.createQuery(() => ({
       .then((r) => r.json())
 }));
 
+const invalidateExact = () => queryClient.invalidateQuery(['products', search]);
+const invalidateAll = () => queryClient.invalidateQueries(['products']);
+${'</' + 'script>'}
+
 <ul class="results" style:opacity={productsQuery.pending ? 0.4 : 1}>
-  {#each (await productsQuery).products as product}
+  {#each (await productsQuery).products as product (product.id)}
     <li>{product.title}</li>
   {/each}
 </ul>
 
-// exact: invalidates ['products', 'phone'] only
-queryClient.invalidateQuery(['products', search]);
-
-// prefix: invalidates every ['products', ...] entry
-queryClient.invalidateQueries(['products']);`;
+<button onclick={invalidateExact}>Invalidate exact key</button>
+<button onclick={invalidateAll}>Invalidate all products/*</button>`;
 
 	// --- Example 2: Category Switching + Cache ---
 	const categories = ['smartphones', 'laptops', 'fragrances', 'groceries', 'furniture'] as const;
@@ -168,7 +170,7 @@ const prefetch = (id: number) =>
 				</div>
 			</div>
 		{:else}
-			<CodeBlock code={searchCode} lang="typescript" />
+			<CodeBlock code={searchCode} lang="svelte" />
 		{/if}
 	</section>
 
