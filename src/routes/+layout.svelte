@@ -234,6 +234,11 @@
 		color: #c678dd;
 	}
 
+	:global(.hljs-tag),
+	:global(.hljs-name) {
+		color: #e5c07b;
+	}
+
 	:global(.hljs-string),
 	:global(.hljs-template-tag) {
 		color: #98c379;
