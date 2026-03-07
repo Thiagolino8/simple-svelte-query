@@ -13,7 +13,7 @@ const items = $state([{ id: 1, name: 'Phone' }]);
   {/each}
 </ul>`;
 
-		const output = hl(code, 'svelte');
+		const output = hl({ code, lang: 'svelte' });
 
 		expect(output).toContain('hljs-tag');
 		expect(output).toContain('hljs-attr');
