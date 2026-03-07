@@ -35,7 +35,7 @@
 		margin: 0;
 	}
 
-	:global(:root) {
+	:root {
 		--bg: #09090b;
 		--surface: #111114;
 		--surface-2: #19191d;
@@ -148,142 +148,6 @@
 		padding: 2.5rem 1.5rem 5rem;
 	}
 
-	:global(.page) {
-		display: grid;
-		gap: 1.5rem;
-	}
-
-	:global(.page-header) {
-		margin-bottom: 0.25rem;
-	}
-
-	:global(.page-header h1) {
-		font-size: 1.5rem;
-		font-weight: 650;
-		letter-spacing: -0.02em;
-	}
-
-	:global(.page-header p) {
-		color: var(--text-2);
-		margin-top: 0.3rem;
-		line-height: 1.6;
-	}
-
-	:global(.card) {
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: 14px;
-		padding: 1.5rem;
-	}
-
-	:global(.card h2) {
-		font-size: 1.12rem;
-		font-weight: 600;
-		margin-bottom: 0.5rem;
-		letter-spacing: -0.01em;
-	}
-
-	:global(.card p),
-	:global(.card li) {
-		color: var(--text-2);
-		line-height: 1.65;
-	}
-
-	:global(.card ul) {
-		padding-left: 1.2rem;
-	}
-
-	:global(.card li + li) {
-		margin-top: 0.25rem;
-	}
-
-	:global(pre) {
-		overflow-x: auto;
-		padding: 1rem 1.2rem;
-		background: var(--code-bg);
-		border: 1px solid var(--border);
-		border-radius: 10px;
-		transition: border-color 200ms;
-	}
-
-	:global(pre:hover) {
-		border-color: var(--border-hover);
-	}
-
-	:global(code) {
-		font-family: var(--font-mono);
-		font-size: 0.82rem;
-	}
-
-	:global(p code),
-	:global(li code) {
-		padding: 0.12rem 0.32rem;
-		background: var(--surface-2);
-		border: 1px solid var(--border);
-		border-radius: 4px;
-		font-size: 0.82em;
-		color: #c9cdd6;
-	}
-
-	:global(pre code) {
-		color: #abb2bf;
-	}
-
-	:global(.hljs-keyword),
-	:global(.hljs-selector-tag) {
-		color: #c678dd;
-	}
-
-	:global(.hljs-tag),
-	:global(.hljs-name) {
-		color: #e5c07b;
-	}
-
-	:global(.hljs-string),
-	:global(.hljs-template-tag) {
-		color: #98c379;
-	}
-
-	:global(.hljs-number),
-	:global(.hljs-literal) {
-		color: #d19a66;
-	}
-
-	:global(.hljs-comment) {
-		color: #5c6370;
-		font-style: italic;
-	}
-
-	:global(.hljs-title),
-	:global(.hljs-title.function_) {
-		color: #61afef;
-	}
-
-	:global(.hljs-built_in) {
-		color: #e5c07b;
-	}
-
-	:global(.hljs-property),
-	:global(.hljs-attr) {
-		color: #e06c75;
-	}
-
-	:global(.hljs-variable) {
-		color: #e06c75;
-	}
-
-	:global(.hljs-params) {
-		color: #abb2bf;
-	}
-
-	:global(.hljs-regexp) {
-		color: #56b6c2;
-	}
-
-	:global(.hljs-meta) {
-		color: #61afef;
-	}
-
 	@media (max-width: 640px) {
 		.header-inner {
 			padding: 0 1rem;
@@ -312,16 +176,6 @@
 
 		main {
 			padding: 1.5rem 1rem 3rem;
-		}
-
-		:global(.card) {
-			padding: 1.2rem;
-			border-radius: 12px;
-		}
-
-		:global(pre) {
-			padding: 0.8rem;
-			font-size: 0.82rem;
 		}
 	}
 </style>
