@@ -1,5 +1,5 @@
 <script lang="ts">
-	import ComparisonPage from '$lib/docs/comparison/ComparisonPage.svelte';
+	import ComparisonPage from '../../docs/comparison/ComparisonPage.svelte';
 </script>
 
 <svelte:head>

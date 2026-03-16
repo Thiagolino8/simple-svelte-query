@@ -1,8 +1,8 @@
 <script lang="ts">
-	import OverviewFeatureGrid from '$lib/docs/overview/OverviewFeatureGrid.svelte';
-	import OverviewHero from '$lib/docs/overview/OverviewHero.svelte';
-	import OverviewLinks from '$lib/docs/overview/OverviewLinks.svelte';
-	import OverviewQuickStart from '$lib/docs/overview/OverviewQuickStart.svelte';
+	import OverviewFeatureGrid from '../docs/overview/OverviewFeatureGrid.svelte';
+	import OverviewHero from '../docs/overview/OverviewHero.svelte';
+	import OverviewLinks from '../docs/overview/OverviewLinks.svelte';
+	import OverviewQuickStart from '../docs/overview/OverviewQuickStart.svelte';
 </script>
 
 <svelte:head>

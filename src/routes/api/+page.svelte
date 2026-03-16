@@ -1,5 +1,5 @@
 <script lang="ts">
-	import ApiReference from '$lib/docs/api/ApiReference.svelte';
+	import ApiReference from '../../docs/api/ApiReference.svelte';
 </script>
 
 <svelte:head>

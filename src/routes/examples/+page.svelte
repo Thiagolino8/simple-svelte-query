@@ -1,5 +1,5 @@
 <script lang="ts">
-	import ExamplesPage from '$lib/docs/examples/ExamplesPage.svelte';
+	import ExamplesPage from '../../docs/examples/ExamplesPage.svelte';
 </script>
 
 <svelte:head>
