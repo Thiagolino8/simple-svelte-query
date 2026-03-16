@@ -5,6 +5,7 @@ process.env.PLAYWRIGHT_BROWSERS_PATH ??= '0';
 
 export default defineConfig({
 	test: {
+		attachmentsDir: '.vitest-artifacts',
 		expect: { requireAssertions: true },
 		projects: [
 			{
@@ -14,7 +15,9 @@ export default defineConfig({
 					browser: {
 						enabled: true,
 						provider: playwright(),
-						instances: [{ browser: 'chromium', headless: true }]
+						instances: [{ browser: 'chromium', headless: true }],
+						screenshotDirectory: '.vitest-screenshots',
+						screenshotFailures: false
 					},
 					include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
 					exclude: ['src/lib/server/**']
