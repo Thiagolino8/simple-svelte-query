@@ -66,4 +66,9 @@ jobs:
 
       - name: Publish
         if: steps.version_check.outputs.already_published == 'false'
+        env:
+          # Force npm CLI to use Trusted Publisher OIDC instead of falling back
+          # to any token injected from repository, environment, or organization secrets.
+          NODE_AUTH_TOKEN: ''
+          NPM_TOKEN: ''
         run: npm publish --provenance --access public
