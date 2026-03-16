@@ -1,4 +1,10 @@
 import { getAbortSignal, hydratable, untrack } from 'svelte';
+import { SvelteSet } from 'svelte/reactivity';
+
+const DEFAULT_STALE_TIME = 1000 * 60 * 5;
+const HYDRATABLE_KEY_PREFIX = 'simple-svelte-query';
+const defaultHashKey = (queryKey: readonly unknown[]) => JSON.stringify(queryKey);
+const createEntryToken = () => Symbol();
 
 type QueryOptions<T, K extends readonly unknown[] = readonly unknown[]> = {
 	staleTime?: number;
@@ -46,6 +52,7 @@ export type QueryResult<T> = PromiseLike<T> & {
 	readonly pending: boolean;
 };
 
+/** @internal Test-only export. Not part of the package public API. */
 export class Query<T, K extends readonly unknown[] = readonly unknown[]> {
 	#staleTime = QueryClient.staleTime;
 	#queryKey: string;
@@ -59,7 +66,7 @@ export class Query<T, K extends readonly unknown[] = readonly unknown[]> {
 		staleTime = QueryClient.staleTime,
 		queryKey,
 		queryFn,
-		hashKey = QueryClient.hashKey as (queryKey: K) => string
+		hashKey = QueryClient.hashKey
 	}: QueryInternalOptions<T, K>) {
 		this.#staleTime = staleTime;
 		this.#queryKey = hashKey(queryKey);
@@ -92,91 +99,216 @@ export class Query<T, K extends readonly unknown[] = readonly unknown[]> {
 		return this.#queryFn({ signal, queryKey });
 	}
 }
-class CacheEntry<T> {
-	#promise: Promise<T>;
-	#createdAt = $state(Date.now());
+/** @internal Test-only export. Not part of the package public API. */
+export class CacheEntry<T> {
+	readonly promise: Promise<T>;
+	readonly token: symbol;
+	updatedAt = $state(Date.now());
+	pending = $state(true);
 
-	constructor(promise: Promise<T>) {
-		this.#promise = $state.raw(promise);
+	constructor(promise: Promise<T>, token = createEntryToken()) {
+		this.promise = $state.raw(promise);
+		this.token = token;
+		const finish = () => {
+			this.updatedAt = Date.now();
+			this.pending = false;
+		};
+		void promise.then(finish, finish);
+	}
+}
+
+/** @internal Test-only export. Not part of the package public API. */
+export class QueryState<T> {
+	#entry: CacheEntry<T> | undefined;
+	#stagedEntry: CacheEntry<T> | undefined;
+	#prefixHashes: SvelteSet<string>;
+	#revision = $state(0);
+	#currentToken = createEntryToken();
+
+	constructor(prefixHashes: readonly string[] = []) {
+		this.#prefixHashes = new SvelteSet(prefixHashes);
 	}
 
-	get promise() {
-		return this.#promise;
+	get entry() {
+		return (this.#revision, this.#stagedEntry ?? this.#entry);
 	}
 
-	get createdAt() {
-		return this.#createdAt;
+	get currentToken() {
+		return (this.#revision, this.#currentToken);
+	}
+
+	set entry(entry: CacheEntry<T> | undefined) {
+		if (this.#entry === entry && this.#stagedEntry === undefined) return;
+		this.#entry = entry;
+		this.#stagedEntry = undefined;
+		this.#revision += 1;
+	}
+
+	set stagedEntry(entry: CacheEntry<T> | undefined) {
+		this.#stagedEntry = entry;
+	}
+
+	set prefixHashes(prefixHashes: readonly string[]) {
+		this.#prefixHashes = new SvelteSet(prefixHashes);
+	}
+
+	matchesPrefix(prefixHash: string) {
+		return this.#prefixHashes.has(prefixHash);
 	}
 
 	invalidate() {
-		this.#createdAt = Number.NEGATIVE_INFINITY;
+		if (!this.#entry && !this.#stagedEntry) return;
+		this.#currentToken = createEntryToken();
+		this.#revision += 1;
 	}
 }
 
 export class QueryClient {
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
-	#queries = new Map<string, CacheEntry<unknown>>();
-	static staleTime: number = 1000 * 60 * 5;
-	static hashKey: (queryKey: readonly unknown[]) => string = JSON.stringify;
+	#queries = new Map<string, QueryState<unknown>>();
+	static staleTime: number = DEFAULT_STALE_TIME;
+	static hashKey: (queryKey: readonly unknown[]) => string = defaultHashKey;
 	#persist: QueryClientPersistOptions | undefined;
+	#staleTime: number;
+	#hashKey: (queryKey: readonly unknown[]) => string;
 
 	/**
-	 * Sets the global defaults used by new queries and stores optional persistence.
+	 * Stores instance defaults and optional persistence.
 	 * @param options Client options.
 	 */
 	constructor({
-		staleTime = 1000 * 60 * 5,
+		staleTime = QueryClient.staleTime,
 		persist,
-		hashKey = JSON.stringify
+		hashKey = QueryClient.hashKey
 	}: QueryClientOptions = {}) {
-		QueryClient.staleTime = staleTime;
-		QueryClient.hashKey = hashKey;
+		this.#staleTime = staleTime;
+		this.#hashKey = hashKey;
 		this.#persist = persist;
 	}
 
-	#getHydrator() {
+	get #hydrator() {
 		return this.#persist?.hydrate ?? (<T>(value: unknown) => Promise.resolve(value as T));
 	}
 
-	#persistResolvedValue(queryKey: readonly unknown[], value: unknown) {
-		const persist = this.#persist;
-		if (!persist) return;
-		const cacheKey = QueryClient.hashKey(queryKey);
-		const dehydrated = persist.dehydrate ? persist.dehydrate(queryKey, value) : value;
-		if (dehydrated === undefined) return;
-		void Promise.resolve(persist.persister.set(cacheKey, dehydrated)).catch(() => {});
+	#getCacheKey(queryKey: readonly unknown[]) {
+		return this.#hashKey(queryKey);
+	}
+
+	#getHydratableKey(cacheKey: string) {
+		return `${HYDRATABLE_KEY_PREFIX}:${cacheKey}`;
+	}
+
+	#getPrefixHashes(queryKey: readonly unknown[]) {
+		return queryKey.map((_, index) => this.#getCacheKey(queryKey.slice(0, index + 1)));
+	}
+
+	#createQuery<T, const K extends readonly unknown[]>(options: QueryOptions<T, K>) {
+		return new Query({
+			staleTime: options.staleTime ?? this.#staleTime,
+			queryKey: options.queryKey,
+			queryFn: options.queryFn,
+			hashKey: this.#hashKey
+		});
+	}
+
+	#getQueryState<T>(cacheKey: string, prefixHashes: readonly string[] = []) {
+		const existing = this.#queries.get(cacheKey) as QueryState<T> | undefined;
+		if (existing) {
+			existing.prefixHashes = prefixHashes;
+			return existing;
+		}
+		const state = new QueryState<T>(prefixHashes);
+		this.#queries.set(cacheKey, state);
+		return state;
+	}
+
+	#detachTask(task: unknown | Promise<unknown>) {
+		void Promise.resolve(task).catch(() => {});
 	}
 
 	#persistResolvedEntry(queryKey: readonly unknown[], sourceEntry: CacheEntry<unknown>) {
-		if (!this.#persist) return;
-		const cacheKey = QueryClient.hashKey(queryKey);
-		void sourceEntry.promise
-			.then((sourceValue) => {
-				const currentEntry = this.#queries.get(cacheKey);
+		const cacheKey = this.#getCacheKey(queryKey);
+		const persist = this.#persist;
+		if (!persist) return;
+		this.#detachTask(
+			sourceEntry.promise.then((sourceValue) => {
+				const currentEntry = this.#queries.get(cacheKey)?.entry;
 				if (currentEntry !== sourceEntry) return;
-				this.#persistResolvedValue(queryKey, sourceValue);
+				const dehydrated = persist.dehydrate
+					? persist.dehydrate(queryKey, sourceValue)
+					: sourceValue;
+				if (dehydrated === undefined) return;
+				return persist.persister.set(cacheKey, dehydrated);
 			})
-			.catch(() => {});
+		);
 	}
 
-	#createHydratableEntry<T, const K extends readonly unknown[]>(
-		query: Query<T, K>,
-		fetcher: () => Promise<T>
-	) {
+	#createHydratableEntry<T>(cacheKey: string, token: symbol, fetcher: () => Promise<T>) {
 		const persist = this.#persist;
-		if (!persist) return new CacheEntry<T>(hydratable(query.key, fetcher));
-		const hydratedPromise = Promise.resolve(persist.persister.get(query.key))
+		const hydratableKey = this.#getHydratableKey(cacheKey);
+		if (!persist) {
+			return new CacheEntry<T>(hydratable(hydratableKey, fetcher), token);
+		}
+		const hydratedPromise = Promise.resolve(persist.persister.get(cacheKey))
 			.then((persistedValue) =>
 				persistedValue === undefined
-					? hydratable(query.key, fetcher)
-					: this.#getHydrator()<T>(persistedValue)
+					? hydratable(hydratableKey, fetcher)
+					: this.#hydrator<T>(persistedValue)
 			)
-			.catch(() => hydratable(query.key, fetcher));
-		return new CacheEntry<T>(hydratedPromise);
+			.catch(() => hydratable(hydratableKey, fetcher));
+		return new CacheEntry<T>(hydratedPromise, token);
 	}
 
-	#setEntry<T>(cacheKey: string, entry: CacheEntry<T>) {
-		this.#queries.set(cacheKey, entry);
+	#createNextEntry<T, const K extends readonly unknown[]>(
+		query: Query<T, K>,
+		cacheKey: string,
+		queryKey: K,
+		token: symbol,
+		cached: CacheEntry<T> | undefined,
+		signal?: AbortSignal
+	) {
+		return cached
+			? new CacheEntry(query.fetch(queryKey, signal), token)
+			: this.#createHydratableEntry(cacheKey, token, () => query.fetch(queryKey, signal));
+	}
+
+	#resolveEntry<T, const K extends readonly unknown[]>(
+		query: Query<T, K>,
+		cacheKey: string,
+		queryKey: K,
+		currentToken: symbol,
+		cached?: CacheEntry<T>,
+		signal?: AbortSignal,
+		ignoreStale = false
+	) {
+		if (
+			cached &&
+			cached.token === currentToken &&
+			(ignoreStale || !query.isStale(cached.updatedAt))
+		) {
+			return cached;
+		}
+		return this.#createNextEntry(query, cacheKey, queryKey, currentToken, cached, signal);
+	}
+
+	#syncEntry<T>(state: QueryState<T>, queryKey: readonly unknown[], entry: CacheEntry<T>) {
+		state.entry = entry;
+		this.#persistResolvedEntry(queryKey, entry);
+	}
+
+	#stageObservedEntry<T, const K extends readonly unknown[]>(
+		state: QueryState<T>,
+		query: Query<T, K>,
+		cacheKey: string,
+		queryKey: K,
+		signal?: AbortSignal
+	) {
+		const cached = state.entry;
+		const entry = this.#resolveEntry(query, cacheKey, queryKey, state.currentToken, cached, signal);
+		if (cached !== entry) {
+			state.stagedEntry = entry;
+		}
+		return entry;
 	}
 
 	/**
@@ -187,35 +319,33 @@ export class QueryClient {
 	createQuery<T, const K extends readonly unknown[]>(
 		optionsFn: () => QueryOptions<T, K>
 	): QueryResult<T> {
-		const queries = this.#queries;
-		const { queryKey, ...rest } = $derived(optionsFn());
-		const query = $derived(new Query({ queryKey, ...untrack(() => rest) }));
+		const queryKey = $derived(optionsFn().queryKey);
+		const cacheKey = $derived(this.#getCacheKey(queryKey));
+		const prefixHashes = $derived(this.#getPrefixHashes(queryKey));
+		const { staleTime, queryFn } = untrack(optionsFn);
+		const query = $derived(
+			this.#createQuery({
+				staleTime,
+				queryKey,
+				queryFn
+			})
+		);
 		const signal = $derived((void queryKey, getAbortSignal()));
-		const entry = $derived.by(() => {
-			const cached = queries.get(query.key) as CacheEntry<T> | undefined;
-			if (cached && !query.isStale(cached.createdAt)) return cached;
-			const newEntry = cached
-				? new CacheEntry(query.fetch(queryKey, signal))
-				: this.#createHydratableEntry(query, () => query.fetch(queryKey, signal));
-			this.#setEntry(query.key, newEntry);
-			this.#persistResolvedEntry(queryKey, newEntry);
-			return newEntry;
+		const state = $derived(this.#getQueryState<T>(cacheKey, prefixHashes));
+		const entry = $derived(this.#stageObservedEntry(state, query, cacheKey, queryKey, signal));
+		$effect.pre(() => {
+			this.#syncEntry(state, queryKey, entry);
 		});
 		return {
 			get queryKey() {
 				return queryKey;
 			},
 			get pending() {
-				return $state
-					.eager(optionsFn().queryKey)
-					.some((key, index) => key !== optionsFn().queryKey[index]);
+				return $state.eager(entry.pending);
 			},
 			get then() {
-				const promise = entry.promise as Promise<T>;
-				return <TResult1 = T, TResult2 = never>(
-					onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
-					onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
-				) => promise.then(onfulfilled, onrejected);
+				const promise = entry.promise;
+				return promise.then.bind(promise);
 			}
 		};
 	}
@@ -226,19 +356,14 @@ export class QueryClient {
 	 * @returns Promise with the query value.
 	 */
 	fetchQuery<T, const K extends readonly unknown[]>(options: QueryOptions<T, K>) {
-		const query = new Query(options);
-		const cached = this.#queries.get(query.key) as CacheEntry<T> | undefined;
-		const entry =
-			cached && !query.isStale(cached.createdAt)
-				? cached
-				: cached
-					? new CacheEntry(query.fetch(options.queryKey))
-					: this.#createHydratableEntry(query, () => query.fetch(options.queryKey));
-		if (this.#queries.get(query.key) !== entry) {
-			this.#setEntry(query.key, entry);
-		}
-		this.#persistResolvedEntry(options.queryKey, entry);
-		return entry.promise as Promise<T>;
+		const query = this.#createQuery(options);
+		const cacheKey = this.#getCacheKey(options.queryKey);
+		const prefixHashes = this.#getPrefixHashes(options.queryKey);
+		const state = this.#getQueryState<T>(cacheKey, prefixHashes);
+		const cached = state.entry;
+		const entry = this.#resolveEntry(query, cacheKey, options.queryKey, state.currentToken, cached);
+		this.#syncEntry(state, options.queryKey, entry);
+		return entry.promise;
 	}
 
 	/**
@@ -247,15 +372,21 @@ export class QueryClient {
 	 * @returns Promise associated with the cache entry.
 	 */
 	ensureQuery<T, const K extends readonly unknown[]>(options: QueryOptions<T, K>) {
-		const query = new Query(options);
-		const entry = this.#queries.has(query.key)
-			? (this.#queries.get(query.key)! as CacheEntry<T>)
-			: this.#createHydratableEntry(query, () => query.fetch(options.queryKey));
-		if (this.#queries.get(query.key) !== entry) {
-			this.#setEntry(query.key, entry);
-		}
-		this.#persistResolvedEntry(options.queryKey, entry);
-		return this.#queries.get(query.key)!.promise as Promise<T>;
+		const query = this.#createQuery(options);
+		const cacheKey = this.#getCacheKey(options.queryKey);
+		const prefixHashes = this.#getPrefixHashes(options.queryKey);
+		const state = this.#getQueryState<T>(cacheKey, prefixHashes);
+		const entry = this.#resolveEntry(
+			query,
+			cacheKey,
+			options.queryKey,
+			state.currentToken,
+			state.entry,
+			undefined,
+			true
+		);
+		this.#syncEntry(state, options.queryKey, entry);
+		return entry.promise;
 	}
 
 	/**
@@ -264,29 +395,35 @@ export class QueryClient {
 	 * @param value Value to persist in cache.
 	 */
 	setQuery<T>(queryKey: unknown[], value: T | Promise<T>) {
-		const cacheKey = QueryClient.hashKey(queryKey);
-		const entry = new CacheEntry(Promise.resolve(value));
-		this.#setEntry(cacheKey, entry);
-		this.#persistResolvedEntry(queryKey, entry);
+		const cacheKey = this.#getCacheKey(queryKey);
+		const prefixHashes = this.#getPrefixHashes(queryKey);
+		const state = this.#getQueryState<T>(cacheKey, prefixHashes);
+		this.#syncEntry(state, queryKey, new CacheEntry(Promise.resolve(value), state.currentToken));
 	}
 
 	/**
 	 * Removes a specific query from cache.
-	 * @param query Query instance to remove.
+	 * @param queryKey Original query key to remove.
 	 */
-	removeQuery<T>(query: Query<T>) {
-		this.#queries.delete(query.key);
+	removeQuery(queryKey: readonly unknown[]) {
+		const cacheKey = this.#getCacheKey(queryKey);
+		const state = this.#queries.get(cacheKey);
+		if (state) {
+			state.entry = undefined;
+		}
 		if (!this.#persist) return;
-		void Promise.resolve(this.#persist.persister.del(query.key)).catch(() => {});
+		this.#detachTask(this.#persist.persister.del(cacheKey));
 	}
 
 	/**
 	 * Clears the entire query cache.
 	 */
 	clear() {
-		this.#queries.clear();
+		for (const state of this.#queries.values()) {
+			state.entry = undefined;
+		}
 		if (!this.#persist) return;
-		void Promise.resolve(this.#persist.persister.clear()).catch(() => {});
+		this.#detachTask(this.#persist.persister.clear());
 	}
 
 	/**
@@ -295,7 +432,7 @@ export class QueryClient {
 	 * @returns Cached promise or `undefined`.
 	 */
 	getQuery<T>(queryKey: unknown[]) {
-		return this.#queries.get(QueryClient.hashKey(queryKey))?.promise as Promise<T> | undefined;
+		return this.#queries.get(this.#getCacheKey(queryKey))?.entry?.promise as Promise<T> | undefined;
 	}
 
 	/**
@@ -303,25 +440,21 @@ export class QueryClient {
 	 * @param queryKey Query key.
 	 */
 	invalidateQuery(queryKey: unknown[]) {
-		this.#queries.get(QueryClient.hashKey(queryKey))?.invalidate();
+		const state = this.#queries.get(this.#getCacheKey(queryKey));
+		if (state) {
+			state.invalidate();
+		}
 	}
 
 	/**
 	 * Invalidates all queries that start with the given prefix.
-	 * For custom `hashKey`, prefix invalidation only works when the hash preserves
-	 * prefix ordering (for example, adding a prefix to `JSON.stringify(queryKey)`).
 	 * @param queryKey Key prefix; empty invalidates all.
 	 */
 	invalidateQueries(queryKey: unknown[] = []) {
-		const hashedPrefix =
-			queryKey.length === 0
-				? ''
-				: QueryClient.hashKey(queryKey).endsWith(']')
-					? QueryClient.hashKey(queryKey).slice(0, -1)
-					: QueryClient.hashKey(queryKey);
-		this.#queries.forEach((_, hash) => {
-			if (hash.startsWith(hashedPrefix)) {
-				this.#queries.get(hash)?.invalidate();
+		const prefixHash = queryKey.length === 0 ? undefined : this.#getCacheKey(queryKey);
+		this.#queries.forEach((state) => {
+			if (!prefixHash || state.matchesPrefix(prefixHash)) {
+				state.invalidate();
 			}
 		});
 	}

@@ -1,5 +1,12 @@
 import { describe, expectTypeOf, it } from 'vitest';
-import { Query, QueryClient, type QueryResult, queryOptions } from './query.svelte.ts';
+import {
+	CacheEntry,
+	Query,
+	QueryClient,
+	QueryState,
+	type QueryResult,
+	queryOptions
+} from './query.svelte.ts';
 
 describe('query typing', () => {
 	it('preserva literal de queryKey em queryOptions', () => {
@@ -45,6 +52,18 @@ describe('query typing', () => {
 			.parameter(0)
 			.toEqualTypeOf<readonly ['todos', { readonly done: false }]>();
 		expectTypeOf(query.fetch).returns.toExtend<Promise<boolean>>();
+	});
+
+	it('preserva generics de CacheEntry e QueryState', () => {
+		const entry = new CacheEntry(Promise.resolve({ id: 1 as const }));
+		const state = new QueryState<{ id: 1 }>();
+
+		state.entry = entry;
+
+		expectTypeOf(entry.promise).resolves.toEqualTypeOf<{ id: 1 }>();
+		expectTypeOf<QueryState<{ id: 1 }>['entry']>().toEqualTypeOf<
+			CacheEntry<{ id: 1 }> | undefined
+		>();
 	});
 
 	it('inclui pending no QueryResult', () => {

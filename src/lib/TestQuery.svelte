@@ -16,6 +16,7 @@
 </script>
 
 <span data-testid="query-key">{JSON.stringify(query.queryKey)}</span>
+<span data-testid="pending">{String(query.pending)}</span>
 
 <svelte:boundary>
 	<span data-testid="status">success</span>

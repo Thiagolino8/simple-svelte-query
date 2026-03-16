@@ -21,7 +21,7 @@
 - `ensureQuery(options)`
 - `setQuery(queryKey, value)`
 - `getQuery(queryKey)`
-- `removeQuery(query)`
+- `removeQuery(queryKey)`
 - `invalidateQuery(queryKey)`
 - `invalidateQueries(prefix?)`
 - `clear()`
@@ -38,9 +38,9 @@
 - `createQuery` can be consumed with `{#await query}` or direct `await query` when Svelte async mode is enabled.
 - cache stores promises directly.
 - invalidation can be exact (`invalidateQuery`) or by prefix (`invalidateQueries`).
-- if you customize `hashKey`, prefix invalidation only works when the hash preserves prefixes.
+- prefix invalidation also works with custom `hashKey`.
 - `options.persist` is optional; when set, `persister` is required with `get/set/del/clear`.
 - `hydrate(value)` lives inside `options.persist` and transforms persisted values before reuse.
 - `setQuery` accepts either a value or a `Promise`.
 - `dehydrate(queryKey, value)` lives inside `options.persist` and can return `undefined` to skip persistence.
-- `staleTime` and `hashKey` configured in `new QueryClient(...)` become static defaults for new `Query` instances.
+- `staleTime` and `hashKey` configured in `new QueryClient(...)` stay scoped to that client instance.

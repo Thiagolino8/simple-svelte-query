@@ -58,16 +58,7 @@ Detailed reference: `docs/API.md`.
 ### Public exports
 
 - `QueryClient`
-- `Query`
 - `queryOptions`
-
-### `new Query(options)`
-
-- `options.queryKey`: hierarchical key used by cache
-- `options.queryFn`: async fetcher receiving `{ signal, queryKey }`
-- `options.staleTime?`: optional stale window in milliseconds
-- `options.hashKey?`: optional key hash function
-- instance API: `key` (hashed key), `isStale(lastUpdated)`, `fetch(queryKey, signal?)`
 
 ### `new QueryClient(options?)`
 
@@ -89,7 +80,7 @@ new QueryClient({
 });
 ```
 
-- `staleTime` and `hashKey` are stored as static defaults used by new `Query` instances
+- `staleTime` and `hashKey` are instance defaults scoped to that `QueryClient`
 
 ### `createQuery(() => options)`
 
@@ -111,10 +102,10 @@ new QueryClient({
 
 - injects a value or `Promise` into cache, wrapped with `Promise.resolve(value)`
 
-### `removeQuery(query)`
+### `removeQuery(queryKey)`
 
-- removes one cache entry using a `Query` instance
-- useful when you already have a constructed query object
+- removes one cache entry using the original `queryKey`
+- works with custom `hashKey`, because the client computes the internal cache key for you
 
 ### `getQuery(queryKey)`
 
@@ -127,7 +118,7 @@ new QueryClient({
 ### `invalidateQueries(prefix?)`
 
 - prefix-based invalidation; with no args invalidates everything
-- if you customize `hashKey`, prefix invalidation only works when the hash preserves key prefixes
+- works with custom `hashKey` because prefixes are tracked per cached entry
 
 ### `clear()`
 

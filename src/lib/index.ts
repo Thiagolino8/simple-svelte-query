@@ -1,1 +1,1 @@
-export { Query, QueryClient, queryOptions } from './query.svelte.ts';
+export { QueryClient, queryOptions } from './query.svelte.ts';

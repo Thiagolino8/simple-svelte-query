@@ -1,16 +1,14 @@
 <script lang="ts">
-	import { browser } from '$app/environment';
 	import type { hl } from './highlight.js';
 	import { hl as highlightCode } from './highlight.js';
-	import { prerenderCodeBlock } from './prerenderCodeBlock.remote.ts';
 
 	let { code, lang = 'typescript' }: Parameters<typeof hl>[0] = $props();
-
-	const renderCodeBlock = (props: Parameters<typeof hl>[0]) =>
-		browser ? highlightCode(props) : prerenderCodeBlock(props);
+	// highlight.js escapes source text and only injects its own span markup.
+	const highlighted = $derived(highlightCode({ code, lang }));
 </script>
 
-<pre><code class={`hljs language-${lang}`}>{@html await renderCodeBlock({ code, lang })}</code></pre>
+<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+<pre><code class={`hljs language-${lang}`}>{@html highlighted}</code></pre>
 
 <style>
 	pre {

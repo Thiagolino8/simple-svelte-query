@@ -7,7 +7,6 @@
 		fetchQueryExample,
 		getQueryExample,
 		invalidateExample,
-		queryExample,
 		queryOptionsExample,
 		removeQueryExample,
 		setQueryExample
@@ -25,20 +24,6 @@
 	</header>
 
 	<div class="card methods">
-		<ApiMethodCard title="new Query(options)" code={queryExample}>
-			<ul class="method-list">
-				<li><code>key</code>: hashed cache key</li>
-				<li>
-					<code>fetch(queryKey, signal?)</code>: runs the query function with
-					<code>{`{ signal, queryKey }`}</code>
-				</li>
-				<li>
-					<code>isStale(lastUpdated)</code>: compares an entry timestamp against
-					<code>staleTime</code>
-				</li>
-			</ul>
-		</ApiMethodCard>
-
 		<ApiMethodCard title="new QueryClient(options?)">
 			<ul class="method-list">
 				<li><code>staleTime</code>: default stale time in milliseconds</li>
@@ -102,9 +87,9 @@
 			</ul>
 		</ApiMethodCard>
 
-		<ApiMethodCard title="removeQuery(query)" code={removeQueryExample}>
+		<ApiMethodCard title="removeQuery(queryKey)" code={removeQueryExample}>
 			<ul class="method-list">
-				<li>Removes a single cache entry using a constructed <code>Query</code> instance</li>
+				<li>Removes a single cache entry using the original <code>queryKey</code></li>
 			</ul>
 		</ApiMethodCard>
 

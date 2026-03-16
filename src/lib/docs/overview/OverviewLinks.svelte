@@ -32,7 +32,7 @@
 	<h2>Links</h2>
 	<div class="links-grid">
 		{#each links as link (link.label)}
-			<a href={link.href} target="_blank" rel="noreferrer">
+			<a href={link.href} target="_blank" rel="external noreferrer">
 				<img class="icon" src={link.icon} alt="" />
 				{link.label}
 			</a>

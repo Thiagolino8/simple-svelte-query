@@ -7,14 +7,12 @@
 
 	let { packageName }: { packageName: string } = $props();
 
-	const options = $derived.by(
-		(): PackageManager[] => [
-			{ id: 'bun', label: 'bun', command: `bun add ${packageName}` },
-			{ id: 'npm', label: 'npm', command: `npm install ${packageName}` },
-			{ id: 'pnpm', label: 'pnpm', command: `pnpm add ${packageName}` },
-			{ id: 'yarn', label: 'yarn', command: `yarn add ${packageName}` }
-		]
-	);
+	const options = $derived.by((): PackageManager[] => [
+		{ id: 'bun', label: 'bun', command: `bun add ${packageName}` },
+		{ id: 'npm', label: 'npm', command: `npm install ${packageName}` },
+		{ id: 'pnpm', label: 'pnpm', command: `pnpm add ${packageName}` },
+		{ id: 'yarn', label: 'yarn', command: `yarn add ${packageName}` }
+	]);
 
 	let selectedId = $state<PackageManager['id']>('bun');
 	let copyState = $state<'idle' | 'copied' | 'error'>('idle');

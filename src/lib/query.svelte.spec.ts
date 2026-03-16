@@ -1,13 +1,11 @@
 import { page } from 'vitest/browser';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render } from 'vitest-browser-svelte';
-import { Query, QueryClient, queryOptions } from './query.svelte.ts';
-import {
-	Query as PublicQuery,
-	QueryClient as PublicQueryClient,
-	queryOptions as publicQueryOptions
-} from './index.ts';
+import { CacheEntry, Query, QueryClient, QueryState, queryOptions } from './query.svelte.ts';
+import * as publicApi from './index.ts';
+import { QueryClient as PublicQueryClient, queryOptions as publicQueryOptions } from './index.ts';
 import TestQuery from './TestQuery.svelte';
+import TrackedQueryOptions from './TrackedQueryOptions.svelte';
 
 let savedStaleTime: number;
 let savedHashKey: (queryKey: readonly unknown[]) => string;
@@ -23,10 +21,15 @@ afterEach(() => {
 });
 
 describe('public API exports', () => {
-	it('exports QueryClient, Query and queryOptions from index', () => {
+	it('exports QueryClient and queryOptions from index', () => {
 		expect(PublicQueryClient).toBe(QueryClient);
-		expect(PublicQuery).toBe(Query);
 		expect(publicQueryOptions).toBe(queryOptions);
+	});
+
+	it('keeps internal classes out of index', () => {
+		expect(publicApi).not.toHaveProperty('Query');
+		expect(publicApi).not.toHaveProperty('CacheEntry');
+		expect(publicApi).not.toHaveProperty('QueryState');
 	});
 });
 
@@ -36,8 +39,10 @@ describe('public API exports', () => {
 describe('queryOptions', () => {
 	it('returns the same options reference', () => {
 		const fn = () => Promise.resolve({ name: 'Alice' });
-		const opts = queryOptions({ queryKey: ['users', 1] as const, queryFn: fn });
+		const options = { queryKey: ['users', 1] as const, queryFn: fn };
+		const opts = queryOptions(options);
 
+		expect(opts).toBe(options);
 		expect(opts.queryKey).toEqual(['users', 1]);
 		expect(opts.queryFn).toBe(fn);
 	});
@@ -82,6 +87,82 @@ describe('Query', () => {
 });
 
 // ---------------------------------------------------------------------------
+// CacheEntry
+// ---------------------------------------------------------------------------
+describe('CacheEntry', () => {
+	it('starts pending and settles on resolve', async () => {
+		let resolve!: (value: string) => void;
+		const promise = new Promise<string>((next) => {
+			resolve = next;
+		});
+		const entry = new CacheEntry(promise);
+
+		expect(entry.pending).toBe(true);
+
+		resolve('ok');
+		await expect(entry.promise).resolves.toBe('ok');
+		expect(entry.pending).toBe(false);
+	});
+
+	it('clears pending on rejection too', async () => {
+		let reject!: (reason?: unknown) => void;
+		const promise = new Promise<never>((_, fail) => {
+			reject = fail;
+		});
+		const entry = new CacheEntry(promise);
+
+		reject(new Error('boom'));
+		await expect(entry.promise).rejects.toThrow('boom');
+		expect(entry.pending).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// QueryState
+// ---------------------------------------------------------------------------
+describe('QueryState', () => {
+	it('prefers stagedEntry over entry until sync', () => {
+		const current = new CacheEntry(Promise.resolve('current'));
+		const staged = new CacheEntry(Promise.resolve('next'));
+		const state = new QueryState<string>();
+
+		state.entry = current;
+		expect(state.entry).toBe(current);
+
+		state.stagedEntry = staged;
+		expect(state.entry).toBe(staged);
+
+		state.entry = staged;
+		expect(state.entry).toBe(staged);
+	});
+
+	it('updates prefix hashes', () => {
+		const state = new QueryState(['users']);
+
+		expect(state.matchesPrefix('users')).toBe(true);
+
+		state.prefixHashes = ['posts'];
+		expect(state.matchesPrefix('users')).toBe(false);
+		expect(state.matchesPrefix('posts')).toBe(true);
+	});
+
+	it('only rotates token when there is tracked state', () => {
+		const emptyState = new QueryState<string>();
+		const emptyToken = emptyState.currentToken;
+
+		emptyState.invalidate();
+		expect(emptyState.currentToken).toBe(emptyToken);
+
+		const state = new QueryState<string>();
+		state.entry = new CacheEntry(Promise.resolve('value'));
+		const token = state.currentToken;
+
+		state.invalidate();
+		expect(state.currentToken).not.toBe(token);
+	});
+});
+
+// ---------------------------------------------------------------------------
 // QueryClient
 // ---------------------------------------------------------------------------
 describe('QueryClient', () => {
@@ -93,15 +174,43 @@ describe('QueryClient', () => {
 
 	// -- constructor --------------------------------------------------------
 	describe('constructor', () => {
-		it('sets static staleTime', () => {
+		it('does not overwrite the global staleTime default', () => {
 			new QueryClient({ staleTime: 12345 });
-			expect(QueryClient.staleTime).toBe(12345);
+			expect(QueryClient.staleTime).toBe(savedStaleTime);
 		});
 
-		it('sets static hashKey', () => {
+		it('does not overwrite the global hashKey default', () => {
 			const hashKey = (queryKey: readonly unknown[]) => `h:${JSON.stringify(queryKey)}`;
 			new QueryClient({ hashKey });
-			expect(QueryClient.hashKey).toBe(hashKey);
+			expect(QueryClient.hashKey).toBe(savedHashKey);
+		});
+
+		it('isolates staleTime and hashKey between instances', async () => {
+			const shortClient = new QueryClient({
+				staleTime: 0,
+				hashKey: (queryKey: readonly unknown[]) => [...queryKey].reverse().join(':')
+			});
+			const longClient = new QueryClient({
+				staleTime: 5000
+			});
+
+			shortClient.setQuery(['scope', 'short'], 'short');
+			longClient.setQuery(['scope', 'short'], 'long');
+
+			expect(await shortClient.getQuery(['scope', 'short'])).toBe('short');
+			expect(await longClient.getQuery(['scope', 'short'])).toBe('long');
+
+			await longClient.fetchQuery({
+				queryKey: ['fresh'],
+				queryFn: vi.fn().mockResolvedValue('cached')
+			});
+
+			const nextResult = await longClient.fetchQuery({
+				queryKey: ['fresh'],
+				queryFn: vi.fn().mockResolvedValue('refetched')
+			});
+
+			expect(nextResult).toBe('cached');
 		});
 	});
 
@@ -133,8 +242,19 @@ describe('QueryClient', () => {
 	describe('removeQuery', () => {
 		it('removes cached entry', () => {
 			client.setQuery(['a'], 1);
-			client.removeQuery(new Query<number>({ queryKey: ['a'], queryFn: () => Promise.resolve(1) }));
+			client.removeQuery(['a']);
 			expect(client.getQuery(['a'])).toBeUndefined();
+		});
+
+		it('removes cached entry with custom hashKey when passed the queryKey', () => {
+			const customClient = new QueryClient({
+				hashKey: (queryKey: readonly unknown[]) => [...queryKey].reverse().join(':')
+			});
+
+			customClient.setQuery(['products', 'phone'], 'p1');
+			customClient.removeQuery(['products', 'phone']);
+
+			expect(customClient.getQuery(['products', 'phone'])).toBeUndefined();
 		});
 	});
 
@@ -184,6 +304,32 @@ describe('QueryClient', () => {
 
 			expect(result).toBe('v2');
 			expect(fn2).toHaveBeenCalledOnce();
+		});
+
+		it('counts staleness from resolution time instead of request start', async () => {
+			let resolveFetch: (value: string) => void = () => undefined;
+			const timedClient = new QueryClient({ staleTime: 25 });
+
+			const firstFetch = timedClient.fetchQuery({
+				queryKey: ['f5'],
+				queryFn: () =>
+					new Promise<string>((resolve) => {
+						resolveFetch = resolve;
+					})
+			});
+
+			await new Promise((resolve) => setTimeout(resolve, 30));
+			resolveFetch('fresh');
+			await firstFetch;
+
+			const secondFn = vi.fn().mockResolvedValue('stale');
+			const result = await timedClient.fetchQuery({
+				queryKey: ['f5'],
+				queryFn: secondFn
+			});
+
+			expect(result).toBe('fresh');
+			expect(secondFn).not.toHaveBeenCalled();
 		});
 	});
 
@@ -301,18 +447,33 @@ describe('QueryClient', () => {
 			const persistentClient = new QueryClient({
 				persist: { persister }
 			});
-			const query = new Query<number>({
-				queryKey: ['persist', 4],
-				queryFn: () => Promise.resolve(1)
-			});
 
 			persistentClient.setQuery(['persist', 4], 1);
-			persistentClient.removeQuery(query);
+			persistentClient.removeQuery(['persist', 4]);
 			persistentClient.clear();
 			await Promise.resolve();
 
 			expect(persister.del).toHaveBeenCalledWith('["persist",4]');
 			expect(persister.clear).toHaveBeenCalledOnce();
+		});
+
+		it('removeQuery uses the client hashKey when passed the queryKey', async () => {
+			const persister = {
+				get: vi.fn(),
+				set: vi.fn(),
+				del: vi.fn().mockResolvedValue(undefined),
+				clear: vi.fn()
+			};
+			const persistentClient = new QueryClient({
+				hashKey: (queryKey: readonly unknown[]) => [...queryKey].reverse().join(':'),
+				persist: { persister }
+			});
+
+			persistentClient.setQuery(['persist', 'custom'], 1);
+			persistentClient.removeQuery(['persist', 'custom']);
+			await Promise.resolve();
+
+			expect(persister.del).toHaveBeenCalledWith('custom:persist');
 		});
 
 		it('invalidate does not call persister.del', async () => {
@@ -464,6 +625,29 @@ describe('QueryClient', () => {
 
 			expect(calls).toBe(2);
 		});
+
+		it('invalidates by prefix with custom hashKey that does not preserve string prefixes', async () => {
+			const customClient = new QueryClient({
+				hashKey: (queryKey: readonly unknown[]) => [...queryKey].reverse().join(':')
+			});
+
+			customClient.setQuery(['products', 'phone'], 'p1');
+			customClient.setQuery(['products', 'laptop'], 'p2');
+			customClient.setQuery(['users', 1], 'u1');
+			customClient.invalidateQueries(['products']);
+
+			let productCalls = 0;
+			await customClient.fetchQuery({
+				queryKey: ['products', 'phone'],
+				queryFn: () => {
+					productCalls++;
+					return Promise.resolve('new-p1');
+				}
+			});
+
+			expect(productCalls).toBe(1);
+			expect(await customClient.getQuery<string>(['users', 1])).toBe('u1');
+		});
 	});
 
 	// -- createQuery (component tests) --------------------------------------
@@ -500,6 +684,97 @@ describe('QueryClient', () => {
 			await expect.element(page.getByTestId('query-key')).toHaveTextContent('["users",42]');
 		});
 
+		it('tracks only queryKey from queryOptions state, not staleTime', async () => {
+			const fn = vi
+				.fn<
+					({
+						signal,
+						queryKey
+					}: {
+						signal?: AbortSignal;
+						queryKey: readonly unknown[];
+					}) => Promise<string>
+				>()
+				.mockResolvedValueOnce('first')
+				.mockResolvedValueOnce('second');
+
+			render(TrackedQueryOptions, {
+				client,
+				queryFn: fn
+			});
+
+			await expect.element(page.getByTestId('data')).toHaveTextContent('"first"');
+			expect(fn).toHaveBeenCalledTimes(1);
+
+			await page.getByTestId('set-stale-time-zero').click();
+			await new Promise((resolve) => setTimeout(resolve, 10));
+
+			await expect.element(page.getByTestId('data')).toHaveTextContent('"first"');
+			await expect.element(page.getByTestId('query-key')).toHaveTextContent('["tracked",1]');
+			expect(fn).toHaveBeenCalledTimes(1);
+
+			await page.getByTestId('increment-query-key').click();
+
+			await expect.element(page.getByTestId('data')).toHaveTextContent('"second"');
+			await expect.element(page.getByTestId('query-key')).toHaveTextContent('["tracked",2]');
+			expect(fn).toHaveBeenCalledTimes(2);
+
+			await page.getByTestId('decrement-query-key').click();
+
+			await expect.element(page.getByTestId('data')).toHaveTextContent('"first"');
+			await expect.element(page.getByTestId('query-key')).toHaveTextContent('["tracked",1]');
+			expect(fn).toHaveBeenCalledTimes(2);
+		});
+
+		it('tracks only queryKey from queryOptions state, not queryFn', async () => {
+			const initialFn = vi
+				.fn<
+					({
+						signal,
+						queryKey
+					}: {
+						signal?: AbortSignal;
+						queryKey: readonly unknown[];
+					}) => Promise<string>
+				>()
+				.mockImplementation(({ queryKey }) => Promise.resolve(`initial:${String(queryKey[1])}`));
+			const nextFn = vi
+				.fn<
+					({
+						signal,
+						queryKey
+					}: {
+						signal?: AbortSignal;
+						queryKey: readonly unknown[];
+					}) => Promise<string>
+				>()
+				.mockImplementation(({ queryKey }) => Promise.resolve(`next:${String(queryKey[1])}`));
+
+			render(TrackedQueryOptions, {
+				client,
+				queryFn: initialFn,
+				nextQueryFn: nextFn
+			});
+
+			await expect.element(page.getByTestId('data')).toHaveTextContent('"initial:1"');
+			expect(initialFn).toHaveBeenCalledTimes(1);
+			expect(nextFn).not.toHaveBeenCalled();
+
+			await page.getByTestId('set-next-query-fn').click();
+			await new Promise((resolve) => setTimeout(resolve, 10));
+
+			await expect.element(page.getByTestId('data')).toHaveTextContent('"initial:1"');
+			expect(initialFn).toHaveBeenCalledTimes(1);
+			expect(nextFn).not.toHaveBeenCalled();
+
+			await page.getByTestId('increment-query-key').click();
+
+			await expect.element(page.getByTestId('data')).toHaveTextContent('"initial:2"');
+			await expect.element(page.getByTestId('query-key')).toHaveTextContent('["tracked",2]');
+			expect(initialFn).toHaveBeenCalledTimes(2);
+			expect(nextFn).not.toHaveBeenCalled();
+		});
+
 		it('caches result for same key', async () => {
 			let calls = 0;
 			const fn = () => {
@@ -515,6 +790,418 @@ describe('QueryClient', () => {
 			await expect.element(page.getByTestId('data')).toHaveTextContent('cached');
 
 			expect(calls).toBe(1);
+		});
+
+		it('sets pending to true while a new query is pending', async () => {
+			let resolveFetch: (value: string) => void = () => undefined;
+			const screen = render(TestQuery, {
+				client,
+				queryKey: ['cq-pending-initial'],
+				queryFn: () =>
+					new Promise<string>((resolve) => {
+						resolveFetch = resolve;
+					})
+			});
+
+			await expect.element(screen.getByTestId('pending')).toHaveTextContent('true');
+
+			resolveFetch('first');
+			await expect.element(screen.getByTestId('data')).toHaveTextContent('"first"');
+			await expect.element(screen.getByTestId('pending')).toHaveTextContent('false');
+		});
+
+		it('reacts to setQuery while observed', async () => {
+			const fn = vi.fn().mockResolvedValue('first');
+			const screen = render(TestQuery, {
+				client,
+				queryKey: ['cq-set-observed'],
+				queryFn: fn
+			});
+
+			await expect.element(screen.getByTestId('data')).toHaveTextContent('"first"');
+
+			client.setQuery(['cq-set-observed'], 'manual');
+
+			await expect.element(screen.getByTestId('data')).toHaveTextContent('"manual"');
+			expect(fn).toHaveBeenCalledTimes(1);
+		});
+
+		it('refetches on every invalidateQuery while observed', async () => {
+			const fn = vi
+				.fn<
+					({
+						signal,
+						queryKey
+					}: {
+						signal?: AbortSignal;
+						queryKey: readonly unknown[];
+					}) => Promise<string>
+				>()
+				.mockResolvedValueOnce('first')
+				.mockResolvedValueOnce('second')
+				.mockResolvedValueOnce('third');
+
+			render(TestQuery, {
+				client,
+				queryKey: ['cq-invalidate-observed'],
+				queryFn: fn
+			});
+
+			await expect.element(page.getByTestId('data')).toHaveTextContent('"first"');
+			expect(fn).toHaveBeenCalledTimes(1);
+
+			client.invalidateQuery(['cq-invalidate-observed']);
+			await expect.element(page.getByTestId('data')).toHaveTextContent('"second"');
+			expect(fn).toHaveBeenCalledTimes(2);
+
+			client.invalidateQuery(['cq-invalidate-observed']);
+			await expect.element(page.getByTestId('data')).toHaveTextContent('"third"');
+			expect(fn).toHaveBeenCalledTimes(3);
+		});
+
+		it('does not collapse repeated invalidateQuery calls while a refetch is pending', async () => {
+			let resolveSecondFetch: (value: string) => void = () => undefined;
+			let resolveThirdFetch: (value: string) => void = () => undefined;
+			const fn = vi
+				.fn<
+					({
+						signal,
+						queryKey
+					}: {
+						signal?: AbortSignal;
+						queryKey: readonly unknown[];
+					}) => Promise<string>
+				>()
+				.mockResolvedValueOnce('first')
+				.mockImplementationOnce(
+					() =>
+						new Promise<string>((resolve) => {
+							resolveSecondFetch = resolve;
+						})
+				)
+				.mockImplementationOnce(
+					() =>
+						new Promise<string>((resolve) => {
+							resolveThirdFetch = resolve;
+						})
+				);
+
+			const screen = render(TestQuery, {
+				client,
+				queryKey: ['cq-invalidate-observed-rapid'],
+				queryFn: fn
+			});
+
+			await expect.element(screen.getByTestId('data')).toHaveTextContent('"first"');
+			expect(fn).toHaveBeenCalledTimes(1);
+
+			client.invalidateQuery(['cq-invalidate-observed-rapid']);
+			await expect.element(screen.getByTestId('pending')).toHaveTextContent('true');
+			expect(fn).toHaveBeenCalledTimes(2);
+
+			client.invalidateQuery(['cq-invalidate-observed-rapid']);
+			expect(fn).toHaveBeenCalledTimes(3);
+
+			resolveSecondFetch('second');
+			await Promise.resolve();
+			await expect.element(screen.getByTestId('pending')).toHaveTextContent('true');
+
+			resolveThirdFetch('third');
+			await expect.element(screen.getByTestId('data')).toHaveTextContent('"third"');
+			await expect.element(screen.getByTestId('pending')).toHaveTextContent('false');
+		});
+
+		it('sets pending to true while revalidating the current query', async () => {
+			let resolveSecondFetch: (value: string) => void = () => undefined;
+			const fn = vi
+				.fn<
+					({
+						signal,
+						queryKey
+					}: {
+						signal?: AbortSignal;
+						queryKey: readonly unknown[];
+					}) => Promise<string>
+				>()
+				.mockResolvedValueOnce('first')
+				.mockImplementationOnce(
+					() =>
+						new Promise<string>((resolve) => {
+							resolveSecondFetch = resolve;
+						})
+				);
+
+			const screen = render(TestQuery, {
+				client,
+				queryKey: ['cq-pending-revalidate'],
+				queryFn: fn
+			});
+
+			await expect.element(screen.getByTestId('data')).toHaveTextContent('"first"');
+			await expect.element(screen.getByTestId('pending')).toHaveTextContent('false');
+
+			client.invalidateQuery(['cq-pending-revalidate']);
+			await expect.element(screen.getByTestId('pending')).toHaveTextContent('true');
+
+			resolveSecondFetch('second');
+			await expect.element(screen.getByTestId('data')).toHaveTextContent('"second"');
+			await expect.element(screen.getByTestId('pending')).toHaveTextContent('false');
+		});
+
+		it('refetches when removeQuery clears an observed cache entry', async () => {
+			const fn = vi
+				.fn<
+					({
+						signal,
+						queryKey
+					}: {
+						signal?: AbortSignal;
+						queryKey: readonly unknown[];
+					}) => Promise<string>
+				>()
+				.mockResolvedValueOnce('first')
+				.mockResolvedValueOnce('second');
+			const screen = render(TestQuery, {
+				client,
+				queryKey: ['cq-remove-observed'],
+				queryFn: fn
+			});
+
+			await expect.element(screen.getByTestId('data')).toHaveTextContent('"first"');
+
+			client.removeQuery(['cq-remove-observed']);
+
+			await expect.element(screen.getByTestId('data')).toHaveTextContent('"second"');
+			expect(fn).toHaveBeenCalledTimes(2);
+		});
+
+		it('refetches when clear clears an observed cache entry', async () => {
+			const fn = vi
+				.fn<
+					({
+						signal,
+						queryKey
+					}: {
+						signal?: AbortSignal;
+						queryKey: readonly unknown[];
+					}) => Promise<string>
+				>()
+				.mockResolvedValueOnce('first')
+				.mockResolvedValueOnce('second');
+			const screen = render(TestQuery, {
+				client,
+				queryKey: ['cq-clear-observed'],
+				queryFn: fn
+			});
+
+			await expect.element(screen.getByTestId('data')).toHaveTextContent('"first"');
+
+			client.clear();
+
+			await expect.element(screen.getByTestId('data')).toHaveTextContent('"second"');
+			expect(fn).toHaveBeenCalledTimes(2);
+		});
+
+		it('refetches on every invalidateQueries while observed', async () => {
+			const fn = vi
+				.fn<
+					({
+						signal,
+						queryKey
+					}: {
+						signal?: AbortSignal;
+						queryKey: readonly unknown[];
+					}) => Promise<string>
+				>()
+				.mockResolvedValueOnce('first')
+				.mockResolvedValueOnce('second')
+				.mockResolvedValueOnce('third');
+
+			render(TestQuery, {
+				client,
+				queryKey: ['cq-prefix', 'observed'],
+				queryFn: fn
+			});
+
+			await expect.element(page.getByTestId('data')).toHaveTextContent('"first"');
+			expect(fn).toHaveBeenCalledTimes(1);
+
+			client.invalidateQueries(['cq-prefix']);
+			await expect.element(page.getByTestId('data')).toHaveTextContent('"second"');
+			expect(fn).toHaveBeenCalledTimes(2);
+
+			client.invalidateQueries(['cq-prefix']);
+			await expect.element(page.getByTestId('data')).toHaveTextContent('"third"');
+			expect(fn).toHaveBeenCalledTimes(3);
+		});
+
+		it('does not collapse repeated invalidateQueries calls while a refetch is pending', async () => {
+			let resolveSecondFetch: (value: string) => void = () => undefined;
+			let resolveThirdFetch: (value: string) => void = () => undefined;
+			const fn = vi
+				.fn<
+					({
+						signal,
+						queryKey
+					}: {
+						signal?: AbortSignal;
+						queryKey: readonly unknown[];
+					}) => Promise<string>
+				>()
+				.mockResolvedValueOnce('first')
+				.mockImplementationOnce(
+					() =>
+						new Promise<string>((resolve) => {
+							resolveSecondFetch = resolve;
+						})
+				)
+				.mockImplementationOnce(
+					() =>
+						new Promise<string>((resolve) => {
+							resolveThirdFetch = resolve;
+						})
+				);
+
+			const screen = render(TestQuery, {
+				client,
+				queryKey: ['cq-prefix', 'observed-rapid'],
+				queryFn: fn
+			});
+
+			await expect.element(screen.getByTestId('data')).toHaveTextContent('"first"');
+			expect(fn).toHaveBeenCalledTimes(1);
+
+			client.invalidateQueries(['cq-prefix']);
+			await expect.element(screen.getByTestId('pending')).toHaveTextContent('true');
+			expect(fn).toHaveBeenCalledTimes(2);
+
+			client.invalidateQueries(['cq-prefix']);
+			expect(fn).toHaveBeenCalledTimes(3);
+
+			resolveSecondFetch('second');
+			await Promise.resolve();
+			await expect.element(screen.getByTestId('pending')).toHaveTextContent('true');
+
+			resolveThirdFetch('third');
+			await expect.element(screen.getByTestId('data')).toHaveTextContent('"third"');
+			await expect.element(screen.getByTestId('pending')).toHaveTextContent('false');
+		});
+
+		it('does not refetch on invalidateQuery while unobserved until observed again', async () => {
+			const fn = vi
+				.fn<
+					({
+						signal,
+						queryKey
+					}: {
+						signal?: AbortSignal;
+						queryKey: readonly unknown[];
+					}) => Promise<string>
+				>()
+				.mockResolvedValueOnce('first')
+				.mockResolvedValueOnce('second');
+
+			const screen = render(TestQuery, {
+				client,
+				queryKey: ['cq-invalidate-unobserved'],
+				queryFn: fn
+			});
+
+			await expect.element(screen.getByTestId('data')).toHaveTextContent('"first"');
+			expect(fn).toHaveBeenCalledTimes(1);
+
+			screen.unmount();
+
+			client.invalidateQuery(['cq-invalidate-unobserved']);
+			client.invalidateQuery(['cq-invalidate-unobserved']);
+			expect(fn).toHaveBeenCalledTimes(1);
+
+			render(TestQuery, {
+				client,
+				queryKey: ['cq-invalidate-unobserved'],
+				queryFn: fn
+			});
+
+			await expect.element(page.getByTestId('data')).toHaveTextContent('"second"');
+			expect(fn).toHaveBeenCalledTimes(2);
+		});
+
+		it('does not refetch on invalidateQueries while unobserved until observed again', async () => {
+			const fn = vi
+				.fn<
+					({
+						signal,
+						queryKey
+					}: {
+						signal?: AbortSignal;
+						queryKey: readonly unknown[];
+					}) => Promise<string>
+				>()
+				.mockResolvedValueOnce('first')
+				.mockResolvedValueOnce('second');
+
+			const screen = render(TestQuery, {
+				client,
+				queryKey: ['cq-prefix', 'unobserved'],
+				queryFn: fn
+			});
+
+			await expect.element(screen.getByTestId('data')).toHaveTextContent('"first"');
+			expect(fn).toHaveBeenCalledTimes(1);
+
+			screen.unmount();
+
+			client.invalidateQueries(['cq-prefix']);
+			client.invalidateQueries(['cq-prefix']);
+			expect(fn).toHaveBeenCalledTimes(1);
+
+			render(TestQuery, {
+				client,
+				queryKey: ['cq-prefix', 'unobserved'],
+				queryFn: fn
+			});
+
+			await expect.element(page.getByTestId('data')).toHaveTextContent('"second"');
+			expect(fn).toHaveBeenCalledTimes(2);
+		});
+
+		it('does not duplicate refetches across remounts and repeated invalidations', async () => {
+			const fn = vi
+				.fn<
+					({
+						signal,
+						queryKey
+					}: {
+						signal?: AbortSignal;
+						queryKey: readonly unknown[];
+					}) => Promise<string>
+				>()
+				.mockResolvedValueOnce('first')
+				.mockResolvedValueOnce('second')
+				.mockResolvedValueOnce('third');
+
+			const screen = render(TestQuery, {
+				client,
+				queryKey: ['cq-no-leak'],
+				queryFn: fn
+			});
+
+			await expect.element(screen.getByTestId('data')).toHaveTextContent('"first"');
+
+			client.invalidateQuery(['cq-no-leak']);
+			await expect.element(screen.getByTestId('data')).toHaveTextContent('"second"');
+
+			screen.unmount();
+			client.invalidateQuery(['cq-no-leak']);
+
+			render(TestQuery, {
+				client,
+				queryKey: ['cq-no-leak'],
+				queryFn: fn
+			});
+
+			await expect.element(page.getByTestId('data')).toHaveTextContent('"third"');
+			expect(fn).toHaveBeenCalledTimes(3);
 		});
 	});
 });
